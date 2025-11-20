@@ -1,0 +1,26 @@
+name: default
+description: "\u0627\u0633\u062A\u0631\u0627\u062A\u0698\u06CC \u0645\u0639\u0627\u0645\
+  \u0644\u0627\u062A\u06CC \u067E\u06CC\u0634\u200C\u0641\u0631\u0636 \u0628\u0627\
+  \ \u062A\u0646\u0638\u06CC\u0645\u0627\u062A \u0645\u062D\u0627\u0641\u0638\u0647\
+  \u200C\u06A9\u0627\u0631\u0627\u0646\u0647"
+enabled: true
+risk_management:
+  max_risk_per_trade_percent: 1.0
+  min_risk_reward_ratio: 2.0
+  preferred_risk_reward_ratio: 2.5
+  default_stop_loss_percent: 1.5
+signal_generation:
+  minimum_signal_score: 33
+  timeframes:
+  - 5m
+  - 15m
+  - 1h
+  - 4h
+  timeframe_weights:
+    5m: 0.7
+    15m: 0.85
+    1h: 1.0
+    4h: 1.2
+filters:
+  min_volume_usdt: 1000000
+  max_spread_percent: 0.5
