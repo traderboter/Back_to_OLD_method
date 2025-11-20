@@ -1015,35 +1015,9 @@ signal_processing:
     enabled: true
     min_score_to_notify: 69.0
   scoring:
-    # ⚙️ روش امتیازدهی - برای backtest و مقایسه
-    # 'new': سیستم جدید (8 ضریب، محدود به 300)
-    # 'old': سیستم قدیمی (13 ضریب، نامحدود)
-    # 'hybrid': ترکیبی (NEW base + OLD multipliers)
-    scoring_method: new
-
-    # تنظیمات روش قدیمی (OLD SYSTEM) - فقط در صورت انتخاب 'old' یا 'hybrid'
-    old_system:
-      # ضرایب اضافی سیستم قدیمی که در NEW حذف شده
-      symbol_performance_enabled: false       # 0.8-1.3 (Adaptive Learning)
-      correlation_safety_enabled: false       # 0.5-1.0
-      structure_score_enabled: false          # 0.8-1.2
-      harmonic_separate_multiplier: false     # 1.0-1.2
-      channel_separate_multiplier: false      # 1.0-1.1
-      cyclical_separate_multiplier: false     # 1.0-1.1
-
-      # اگر فعال باشند:
-      symbol_performance_default: 1.0
-      correlation_safety_default: 1.0
-      structure_score_default: 1.0
-      harmonic_multiplier_default: 1.0
-      channel_multiplier_default: 1.0
-      cyclical_multiplier_default: 1.0
-
-      # تنظیمات confluence برای OLD (RR-based)
-      use_rr_based_confluence: true           # true = RR-based, false = Alignment-based
-
-      # محدودیت امتیاز نهایی (0 = نامحدود)
-      max_final_score: 0                      # 0 = unlimited (OLD style), 300 = NEW style
+    # ⚙️ سیستم امتیازدهی: OLD SYSTEM (13 ضریب، نامحدود)
+    # محدودیت امتیاز نهایی (0 = نامحدود)
+    max_final_score: 0
 
     weights:
       trend: 0.3

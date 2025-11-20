@@ -52,28 +52,23 @@ class SignalScore:
     # Aggregate scores
     base_score: float = 0.0              # Sum of weighted scores
     
-    # Bonuses and multipliers
-    confluence_bonus: float = 0.0        # 0-0.5 (همگرایی)
-    timeframe_weight: float = 1.0        # 0.5-1.5 (وزن تایم‌فریم)
-    htf_multiplier: float = 1.0          # 0.7-1.3 (هم‌راستایی با HTF)
-    volatility_multiplier: float = 1.0   # 0.6-1.5 (تنظیم نوسان)
-
-    # NEW: Multipliers from OLD SYSTEM
-    trend_alignment: float = 1.0         # 0.8-1.2 (همراستایی روند)
-    volume_confirmation: float = 1.0     # 1.0 or 1.1 (تأیید حجم)
-    pattern_quality: float = 1.0         # 1.0-1.5 (کیفیت الگو)
-    macd_analysis_score: float = 1.0     # 0.85-1.15 (تحلیل MACD)
-
-    # OLD SYSTEM specific multipliers (optional - only if OLD or HYBRID mode)
+    # Bonuses and multipliers (OLD SYSTEM - 13 multipliers)
+    confluence_bonus: float = 0.0               # 0-0.5 (RR-based همگرایی)
+    timeframe_weight: float = 1.0               # 0.7-1.2 (وزن تایم‌فریم)
+    trend_alignment: float = 1.0                # 0.8-1.2 (همراستایی روند)
+    volume_confirmation: float = 1.0            # 1.0-1.4 (تأیید حجم)
+    pattern_quality: float = 1.0                # 1.0-1.5 (کیفیت الگو)
     symbol_performance_factor: float = 1.0      # 0.8-1.3 (Adaptive Learning)
-    correlation_safety_factor: float = 1.0      # 0.5-1.0
+    correlation_safety_factor: float = 1.0      # 0.5-1.0 (ایمنی همبستگی)
+    macd_analysis_score: float = 1.0            # 0.85-1.15 (تحلیل MACD)
     structure_score: float = 1.0                # 0.8-1.2 (HTF structure)
-    harmonic_multiplier: float = 1.0            # 1.0-1.2 (separate harmonic)
-    channel_multiplier: float = 1.0             # 1.0-1.1 (separate channel)
-    cyclical_multiplier: float = 1.0            # 1.0-1.1 (separate cyclical)
+    volatility_multiplier: float = 1.0          # 0.5-1.0 (تنظیم نوسان)
+    harmonic_multiplier: float = 1.0            # 1.0-1.2 (ضریب هارمونیک)
+    channel_multiplier: float = 1.0             # 1.0-1.1 (ضریب کانال)
+    cyclical_multiplier: float = 1.0            # 1.0-1.1 (ضریب چرخه‌ای)
 
     # Final score
-    final_score: float = 0.0             # امتیاز نهایی (0-300 or unlimited)
+    final_score: float = 0.0             # امتیاز نهایی (unlimited - OLD SYSTEM)
     
     # Metadata
     confidence: float = 0.5              # اطمینان (0-1)
@@ -91,82 +86,51 @@ class SignalScore:
     # Scoring breakdown for debugging
     breakdown: Dict[str, Any] = field(default_factory=dict)
     
-    def calculate_final_score(
-        self,
-        method: str = 'new',
-        max_score: float = 300.0
-    ) -> float:
+    def calculate_final_score(self, max_score: float = 0.0) -> float:
         """
-        Calculate final score from all components using selected method.
+        Calculate final score from all components using OLD SYSTEM method.
 
         Args:
-            method: 'new', 'old', or 'hybrid'
-            max_score: Maximum final score (0 = unlimited)
+            max_score: Maximum final score (0 = unlimited, default for OLD system)
 
-        Methods:
-        - 'new': NEW SYSTEM (8 multipliers, normalized base_score)
-        - 'old': OLD SYSTEM (13 multipliers, compatible with old logic)
-        - 'hybrid': NEW base_score + OLD multipliers
+        Formula: 13 multipliers (OLD SYSTEM)
+        - base_score
+        - confluence_bonus (RR-based)
+        - timeframe_weight
+        - trend_alignment
+        - volume_confirmation
+        - pattern_quality
+        - symbol_performance_factor (Adaptive Learning)
+        - correlation_safety_factor
+        - macd_analysis_score
+        - structure_score (HTF structure)
+        - volatility_multiplier
+        - harmonic_multiplier
+        - channel_multiplier
+        - cyclical_multiplier
 
         Returns:
             Final score
         """
-        if method == 'new':
-            # ✅ NEW SYSTEM (default)
-            # Formula: 8 multipliers
-            self.final_score = (
-                self.base_score
-                * (1.0 + self.confluence_bonus)      # 0-0.5
-                * self.timeframe_weight               # 0.5-1.8
-                * self.trend_alignment                # 0.8-1.2
-                * self.volume_confirmation            # 1.0-1.1
-                * self.pattern_quality                # 1.0-1.5
-                * self.macd_analysis_score            # 0.85-1.2
-                * self.htf_multiplier                 # 0.7-1.3
-                * self.volatility_multiplier          # 0.6-1.5
-            )
+        # OLD SYSTEM (13 multipliers)
+        self.final_score = (
+            self.base_score
+            * (1.0 + self.confluence_bonus)       # 0-0.5 (RR-based)
+            * self.timeframe_weight                # 0.7-1.2
+            * self.trend_alignment                 # 0.8-1.2
+            * self.volume_confirmation             # 1.0-1.4
+            * self.pattern_quality                 # 1.0-1.5
+            * self.symbol_performance_factor       # 0.8-1.3 (Adaptive Learning)
+            * self.correlation_safety_factor       # 0.5-1.0
+            * self.macd_analysis_score             # 0.85-1.15
+            * self.structure_score                 # 0.8-1.2 (HTF structure)
+            * self.volatility_multiplier           # 0.5-1.0
+            * self.harmonic_multiplier             # 1.0-1.2
+            * self.channel_multiplier              # 1.0-1.1
+            * self.cyclical_multiplier             # 1.0-1.1
+        )
 
-        elif method == 'old':
-            # ⚙️ OLD SYSTEM (13 multipliers - for backtest comparison)
-            # Formula: compatible with old signal_generator.py
-            self.final_score = (
-                self.base_score
-                * (1.0 + self.confluence_bonus)       # 0-0.5 (RR-based if configured)
-                * self.timeframe_weight                # 0.7-1.2
-                * self.trend_alignment                 # 0.8-1.2
-                * self.volume_confirmation             # 1.0-1.4 (wider range in OLD)
-                * self.pattern_quality                 # 1.0-1.5
-                * self.symbol_performance_factor       # 0.8-1.3 ✨ OLD specific
-                * self.correlation_safety_factor       # 0.5-1.0 ✨ OLD specific
-                * self.macd_analysis_score             # 0.85-1.15
-                * self.structure_score                 # 0.8-1.2 ✨ OLD specific (HTF)
-                * self.volatility_multiplier           # 0.5-1.0 (in OLD)
-                * self.harmonic_multiplier             # 1.0-1.2 ✨ OLD specific
-                * self.channel_multiplier              # 1.0-1.1 ✨ OLD specific
-                * self.cyclical_multiplier             # 1.0-1.1 ✨ OLD specific
-            )
-
-        elif method == 'hybrid':
-            # 🔀 HYBRID SYSTEM
-            # NEW base scoring + OLD multipliers (best of both)
-            self.final_score = (
-                self.base_score                        # NEW: normalized 0-100
-                * (1.0 + self.confluence_bonus)        # Can be RR or Alignment
-                * self.timeframe_weight                # 0.5-1.8 (NEW range)
-                * self.trend_alignment                 # 0.8-1.2
-                * self.volume_confirmation             # 1.0-1.4 (OLD range)
-                * self.pattern_quality                 # 1.0-1.5
-                * self.symbol_performance_factor       # 0.8-1.3 (if enabled)
-                * self.macd_analysis_score             # 0.85-1.2
-                * self.htf_multiplier                  # 0.7-1.3 (NEW: cleaner than structure_score)
-                * self.volatility_multiplier           # 0.6-1.5 (NEW range)
-            )
-
-        else:
-            logger.warning(f"Unknown scoring method '{method}', defaulting to 'new'")
-            return self.calculate_final_score(method='new', max_score=max_score)
-
-        # Apply max_score limit (0 = unlimited)
+        # Apply max_score limit (0 = unlimited, default for OLD system)
         if max_score > 0:
             self.final_score = max(0.0, min(self.final_score, max_score))
         else:

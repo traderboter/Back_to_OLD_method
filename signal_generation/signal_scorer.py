@@ -90,23 +90,11 @@ class SignalScorer:
         self.htf_alignment_bonus = scoring_config.get('htf_alignment_bonus', 0.3)
         self.htf_misalignment_penalty = scoring_config.get('htf_misalignment_penalty', 0.3)
 
-        # ⚙️ NEW: Scoring method selection ('new', 'old', 'hybrid')
-        self.scoring_method = scoring_config.get('scoring_method', 'new')
-
-        # Load OLD SYSTEM configuration (for 'old' or 'hybrid' modes)
-        self.old_system_config = scoring_config.get('old_system', {})
-        self.max_final_score = self.old_system_config.get('max_final_score', 300.0)
-
-        # Override max_final_score based on method
-        if self.scoring_method == 'new':
-            self.max_final_score = 300.0  # Always limited for NEW
-        elif self.scoring_method == 'old':
-            # Use config value (0 = unlimited, OLD style)
-            self.max_final_score = self.old_system_config.get('max_final_score', 0)
+        # OLD SYSTEM: max_final_score (0 = unlimited)
+        self.max_final_score = scoring_config.get('max_final_score', 0)
 
         logger.info(
-            f"SignalScorer initialized successfully "
-            f"(method={self.scoring_method}, max_score={self.max_final_score})"
+            f"SignalScorer initialized successfully (OLD SYSTEM, max_score={self.max_final_score})"
         )
     
     def calculate_score(
@@ -155,23 +143,20 @@ class SignalScorer:
             # 8. Apply volatility adjustment
             self._apply_volatility_adjustment(score, context)
 
-            # 9. NEW: Apply trend alignment multiplier
+            # 9. Apply trend alignment multiplier
             self._apply_trend_alignment(score, context, direction)
 
-            # 10. NEW: Apply volume confirmation multiplier
+            # 10. Apply volume confirmation multiplier
             self._apply_volume_confirmation(score, context, direction)
 
-            # 11. NEW: Apply pattern quality multiplier
+            # 11. Apply pattern quality multiplier
             self._apply_pattern_quality(score, context)
 
-            # 12. NEW: Apply MACD analysis score multiplier
+            # 12. Apply MACD analysis score multiplier
             self._apply_macd_analysis_score(score, context)
 
-            # 13. Calculate final score (with method selection)
-            score.calculate_final_score(
-                method=self.scoring_method,
-                max_score=self.max_final_score
-            )
+            # 13. Calculate final score (OLD SYSTEM)
+            score.calculate_final_score(max_score=self.max_final_score)
 
             # 14. Determine strength and confidence
             score.determine_signal_strength()

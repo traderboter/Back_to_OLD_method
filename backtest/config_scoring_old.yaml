@@ -1,41 +1,17 @@
 # ================= Scoring Config: OLD SYSTEM =================
-# این فایل فقط شامل تنظیمات scoring است
-# برای استفاده در backtest با روش OLD (سازگار با سیستم قدیمی)
+# این فایل فقط شامل تنظیمات scoring برای backtest است
+# سیستم همیشه از OLD method استفاده می‌کند (13 ضریب، نامحدود)
 # ================================================================
 
 # ================= Orchestrator Settings =================
 orchestrator:
-  # ⚙️ OLD SYSTEM: Multi-TF Aggregation
+  # Multi-TF Aggregation (OLD SYSTEM)
   use_multi_tf_aggregation: true
 
 signal_processing:
   scoring:
-    # ⚙️ OLD SYSTEM - سیستم قدیمی
-    scoring_method: old
-
-    # تنظیمات OLD فعال
-    old_system:
-      # ضرایب اضافی OLD (در backtest بدون داده واقعی = 1.0)
-      symbol_performance_enabled: true
-      correlation_safety_enabled: true
-      structure_score_enabled: true
-      harmonic_separate_multiplier: true
-      channel_separate_multiplier: true
-      cyclical_separate_multiplier: true
-
-      # مقادیر پیش‌فرض (چون در backtest داده تاریخی نداریم)
-      symbol_performance_default: 1.0
-      correlation_safety_default: 1.0
-      structure_score_default: 1.0
-      harmonic_multiplier_default: 1.0
-      channel_multiplier_default: 1.0
-      cyclical_multiplier_default: 1.0
-
-      # RR-based confluence (روش قدیمی)
-      use_rr_based_confluence: true
-
-      # نامحدود (OLD style)
-      max_final_score: 0  # 0 = unlimited
+    # نامحدود (unlimited scoring)
+    max_final_score: 0
 
     # وزن‌های analyzer (همان NEW)
     weights:
