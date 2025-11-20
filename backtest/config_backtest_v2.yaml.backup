@@ -1,0 +1,664 @@
+# ================= فایل تنظیمات Backtest =================
+# این فایل برای اجرای Backtest روی داده‌های تاریخی است
+
+# ================= بخش تنظیمات Exchange Client =================
+exchange:
+  api_key: 'BACKTEST_MODE'
+  api_secret: 'BACKTEST_MODE'
+  api_passphrase: 'BACKTEST_MODE'
+  api_version: '2'
+  base_url: 'https://api-futures.kucoin.com'
+  websocket:
+    enabled: False  # در Backtest WebSocket غیرفعال است
+    ping_interval: 20
+    auto_reconnect: False
+
+# ================= بخش دریافت داده‌ها =================
+data_fetching:
+  market_type: 'futures'
+  primary_api: 'csv'  # استفاده از CSV به جای API
+  max_symbols: 0
+  auto_symbols: False  # لیست نمادها دستی است
+  fallback_apis: []
+  timeframes: ['5m', '15m', '1h', '4h']
+  max_concurrent_fetches: 10
+  rate_limits:
+    requests_per_second: 1000  # در Backtest محدودیت نداریم
+  delta_updates:
+    enabled: False  # در Backtest نیاز نیست
+    smart_caching: False
+  cache:
+    use_redis: False  # در Backtest Redis نیاز نیست
+    use_memory_cache: True  # فقط کش حافظه برای سرعت
+    expiry_seconds:
+      '5m': 300
+      '15m': 900
+      '1h': 3600
+      '4h': 14400
+  use_mock_data: False
+
+# ================= بخش استراتژی Ensemble =================
+ensemble_strategy:
+  enabled: False
+  voting_threshold: 0.6
+  min_strategies_agreement: 2
+  trend_strategy_weight: 1.2
+  mean_reversion_strategy_weight: 1.0
+  breakout_strategy_weight: 1.1
+
+# ================= بخش تولید سیگنال =================
+signal_generation:
+  minimum_signal_score: 46
+  strong_signal_score: 44
+  timeframes: ['5m', '15m', '1h', '4h']
+  timeframe_weights:
+    '5m': 0.7
+    '15m': 0.85
+    '1h': 1.0
+    '4h': 1.2
+  volume_multiplier_threshold: 1.3
+  volume_confirmation_weight: 1.0
+  divergence_sensitivity: 0.75
+  peak_detection_order: 3
+  peak_detection_distance: 5
+  trend_following_weight: 1.0
+  reversal_weight: 1.0
+  trend_alignment_weight: 1.0
+
+  # 🔥 اصلاح شده: تنظیمات Adaptive Learning
+  use_adaptive_learning: False
+  adaptive_learning:
+    enabled: False
+    learning_rate: 0.01
+    min_samples: 50
+    register_results: False
+    update_frequency: 'never'  # در Backtest هیچ‌وقت به‌روزرسانی نمی‌شود
+
+# ================= بخش امتیازدهی به الگوهای معاملاتی =================
+# نسخه جدید: امتیازدهی خاص هر تایم‌فریم برای Backtest
+# هر الگو می‌تواند برای هر تایم‌فریم امتیاز متفاوتی داشته باشد
+# الگوها در تایم‌فریم‌های بلندتر معمولاً قابل اعتمادتر هستند
+pattern_scores:
+  # --- الگوهای کندل استیک ---
+  hammer:
+    '5m': 0.8
+    '15m': 1.0
+    '1h': 1.2
+    '4h': 1.5
+
+  inverted_hammer:
+    '5m': 0.6
+    '15m': 0.75
+    '1h': 0.9
+    '4h': 1.1
+
+  bullish_engulfing:
+    '5m': 1.0
+    '15m': 1.25
+    '1h': 1.5
+    '4h': 1.8
+
+  piercing_line:
+    '5m': 0.7
+    '15m': 0.9
+    '1h': 1.1
+    '4h': 1.3
+
+  morning_star:
+    '5m': 1.2
+    '15m': 1.5
+    '1h': 1.8
+    '4h': 2.2
+
+  three_white_soldiers:
+    '5m': 1.3
+    '15m': 1.6
+    '1h': 2.0
+    '4h': 2.5
+
+  dragonfly_doji:
+    '5m': 0.6
+    '15m': 0.75
+    '1h': 0.9
+    '4h': 1.1
+
+  hanging_man:
+    '5m': 0.7
+    '15m': 0.85
+    '1h': 1.0
+    '4h': 1.2
+
+  shooting_star:
+    '5m': 0.7
+    '15m': 0.85
+    '1h': 1.0
+    '4h': 1.2
+
+  bearish_engulfing:
+    '5m': 1.0
+    '15m': 1.25
+    '1h': 1.5
+    '4h': 1.8
+
+  dark_cloud_cover:
+    '5m': 0.8
+    '15m': 1.0
+    '1h': 1.2
+    '4h': 1.5
+
+  evening_star:
+    '5m': 1.2
+    '15m': 1.5
+    '1h': 1.8
+    '4h': 2.2
+
+  three_black_crows:
+    '5m': 1.3
+    '15m': 1.6
+    '1h': 2.0
+    '4h': 2.5
+
+  gravestone_doji:
+    '5m': 0.6
+    '15m': 0.75
+    '1h': 0.9
+    '4h': 1.1
+
+  bullish_harami:
+    '5m': 0.7
+    '15m': 0.85
+    '1h': 1.0
+    '4h': 1.2
+
+  bearish_harami:
+    '5m': 0.7
+    '15m': 0.85
+    '1h': 1.0
+    '4h': 1.2
+
+  doji:
+    '5m': 0.2
+    '15m': 0.25
+    '1h': 0.3
+    '4h': 0.35
+
+  # --- اندیکاتورهای تکنیکال ---
+  macd_bullish_crossover:
+    '5m': 1.8
+    '15m': 2.0
+    '1h': 2.2
+    '4h': 2.6
+
+  macd_bearish_crossover:
+    '5m': 1.8
+    '15m': 2.0
+    '1h': 2.2
+    '4h': 2.6
+
+  macd_bullish_zero_cross:
+    '5m': 1.5
+    '15m': 1.8
+    '1h': 2.0
+    '4h': 2.3
+
+  macd_bearish_zero_cross:
+    '5m': 1.5
+    '15m': 1.8
+    '1h': 2.0
+    '4h': 2.3
+
+  rsi_oversold_reversal:
+    '5m': 1.8
+    '15m': 2.0
+    '1h': 2.3
+    '4h': 2.8
+
+  rsi_overbought_reversal:
+    '5m': 1.8
+    '15m': 2.0
+    '1h': 2.3
+    '4h': 2.8
+
+  rsi_bullish_divergence:
+    '5m': 3.0
+    '15m': 3.5
+    '1h': 3.8
+    '4h': 4.5
+
+  rsi_bearish_divergence:
+    '5m': 3.0
+    '15m': 3.5
+    '1h': 3.8
+    '4h': 4.5
+
+  rsi_hidden_bullish_divergence:
+    '5m': 2.5
+    '15m': 3.0
+    '1h': 3.3
+    '4h': 3.8
+
+  rsi_hidden_bearish_divergence:
+    '5m': 2.5
+    '15m': 3.0
+    '1h': 3.3
+    '4h': 3.8
+
+  stochastic_oversold_bullish_cross:
+    '5m': 2.0
+    '15m': 2.5
+    '1h': 2.8
+    '4h': 3.2
+
+  stochastic_overbought_bearish_cross:
+    '5m': 2.0
+    '15m': 2.5
+    '1h': 2.8
+    '4h': 3.2
+
+  # --- حمایت و مقاومت ---
+  broken_resistance:
+    '5m': 2.5
+    '15m': 2.8
+    '1h': 3.0
+    '4h': 3.5
+
+  broken_support:
+    '5m': 2.5
+    '15m': 2.8
+    '1h': 3.0
+    '4h': 3.5
+
+# ================= بخش تشخیص رژیم بازار =================
+market_regime:
+  enabled: True
+  adx_period: 14
+  volatility_period: 20
+  strong_trend_threshold: 25
+  weak_trend_threshold: 20
+  high_volatility_threshold: 1.5
+  low_volatility_threshold: 0.5
+  adapt_strategy: True
+
+# ================= بخش پردازش سیگنال =================
+# توجه: تنظیمات کامل signal_processing در انتهای فایل (بعد از orchestrator) قرار دارد
+
+# ================= بخش معاملات =================
+trading:
+  mode: 'backtest'  # حالت Backtest
+  auto_update_prices: True
+  price_update_interval: 10
+  multi_tp:
+    enabled: False  # 🔥 تغییر به False
+
+# ================= بخش مدیریت ریسک =================
+risk_management:
+  account_balance: 10000.0
+  account_risk_multiplier: 1.0
+  max_risk_per_trade_percent: 2.0
+  max_risk_per_symbol_percent: 5.0
+  max_daily_risk_percent: 5.0
+  max_open_risk_percent: 10.0
+  max_open_trades: 100
+  max_trades_per_symbol: 100
+  min_risk_reward_ratio: 2.5
+  preferred_risk_reward_ratio: 2.5
+
+  use_correlation_check: False  # در Backtest تک نماد نیاز نیست
+  max_correlation_threshold: 0.7
+  max_correlated_trades: 2
+  correlation_timeframe: '4h'
+  correlation_period: 100
+
+  use_trailing_stop: True
+  trailing_stop_activation_percent: 3.0
+  trailing_stop_distance_percent: 2.25
+  use_atr_based_trailing: True
+  atr_trailing_multiplier: 2.25
+  atr_trailing_period: 21
+  use_structure_based_stops: False
+  swing_detection_lookback: 21
+  use_time_based_stops: False
+  max_trade_duration_hours: 48
+
+  use_dynamic_position_sizing: True
+  drawdown_protection: True
+  max_drawdown_percent: 20.0
+  winning_streak_factor: 1.1
+  losing_streak_factor: 0.9
+  max_risk_increase: 1.5
+  kelly_fraction: 0.5
+
+  allow_opposite_trades: False
+  fixed_position_size: 200
+  max_position_size: 500
+  default_stop_loss_percent: 3
+
+  btc_correlation:
+    consider_btc_trend: False
+    btc_symbol: "BTCUSDT"
+    correlation_timeframes: ["15m", "1h", "4h", "1d"]
+    correlation_timeframe_weights: [0.1, 0.2, 0.3, 0.4]
+    primary_correlation_timeframe: "1h"
+    correlation_period: 100
+    inverse_correlation_threshold: -0.2
+    zero_correlation_threshold: 0.2
+    strong_correlation_threshold: 0.4
+    analyze_lag_correlation: false
+    max_lag_periods: 5
+    btc_trend_timeframe: "4h"
+    btc_trend_period: 50
+    btc_trend_ema_fast: 20
+    btc_trend_ema_slow: 50
+    btc_trend_strength_threshold: 0.01
+    analyze_btc_volume: false
+    btc_volume_timeframe: "1d"
+    btc_volume_period: 20
+    btc_high_volume_threshold: 1.5
+    correlation_cache_expiry_seconds: 3600
+    btc_trend_cache_expiry: 1800
+    btc_volume_cache_expiry: 1800
+
+# ================= بخش Backtest - تنظیمات اصلی =================
+backtest:
+  # حالت و منبع داده
+  mode: 'historical'
+  data_source: 'csv'
+
+  # مسیر داده‌های تاریخی
+  data_path: './historical/'  # مسیر نسبی از پوشه New
+
+  # بازه زمانی Backtest
+  start_date: 'auto'
+  end_date: 'auto'
+
+  # موجودی اولیه
+  initial_balance: 10000.0
+
+  # نمادهای مورد تست
+  symbols:
+    - 'BTC-USDT'
+
+  # فرمت فایل‌های CSV
+  csv_format:
+    # ساختار پوشه و فایل
+    folder_structure: '{symbol}/'  # BTC-USDT/
+
+    # نگاشت تایم‌فریم به نام فایل
+    timeframe_files:
+      '5m': '5min.csv'
+      '15m': '15min.csv'
+      '1h': '1hour.csv'
+      '4h': '4hour.csv'
+
+    # تنظیمات خواندن CSV
+    separator: ','
+    encoding: 'utf-8'
+
+    # ستون‌های مورد نیاز
+    columns:
+      timestamp: 'timestamp'
+      open: 'open'
+      high: 'high'
+      low: 'low'
+      close: 'close'
+      volume: 'volume'
+
+    # ستون‌هایی که نادیده گرفته می‌شوند
+    ignore_columns: ['timestamp_unix']
+
+    # فرمت تاریخ
+    date_format: '%Y-%m-%d %H:%M:%S'
+
+    # اعتبارسنجی داده‌ها
+    validate_data: True
+    fill_missing_data: True
+    remove_duplicates: True
+    check_chronological_order: True
+
+  # تنظیمات شبیه‌سازی
+  simulation_speed: 'fast'  # 'fast' یا 'normal'
+  step_timeframe: '5m'  # حرکت با تایم‌فریم 5 دقیقه
+  process_interval: 180  # هر 3 دقیقه یکبار پردازش (ثانیه)
+
+  # تنظیمات کمیسیون و اسلیپیج
+  commission_rate: 0.0006  # 0.06% هر طرف
+  slippage: 0.0005  # 0.05% لغزش
+
+  # تولید گزارش
+  generate_report: True
+  save_trades_to_csv: True
+  create_equity_curve: True
+  create_trade_charts: True
+  save_individual_trade_charts: False  # ذخیره چارت هر معامله (حجم زیاد)
+
+  # مسیر ذخیره نتایج
+  results_dir: 'backtest_results'
+  results_subdir_format: '%Y%m%d_%H%M%S'  # فرمت نام پوشه (مثلاً: 20241021_143022)
+
+  # تنظیمات Grid Search (اختیاری - برای بهینه‌سازی)
+  enable_optimization: False
+  parameters_to_test:
+    - 'signal_generation.minimum_signal_score'
+    - 'risk_management.max_risk_per_trade_percent'
+    - 'risk_management.trailing_stop_distance_percent'
+  parallel_backtests: True
+  max_workers: 4
+
+  # تنظیمات پیشرفته
+  preload_all_data: True  # بارگذاری همه داده‌ها در ابتدا (سریع‌تر)
+  use_progress_bar: True  # نمایش پیشرفت
+  log_trades: True  # لاگ معاملات در کنسول
+  checkpoint_interval: 3600  # ذخیره Checkpoint هر ساعت (ثانیه)
+
+# ================= بخش لاگینگ و اطلاع‌رسانی =================
+logging:
+  level: 'INFO'
+  format: '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+  file: 'logs/backtest_btc.log'
+  rotate: True
+  max_size: 10485760
+  backup_count: 5
+
+notification:
+  enabled: False  # غیرفعال در Backtest
+  channels:
+    telegram:
+      enabled: False
+      token: 'YOUR_TELEGRAM_BOT_TOKEN'
+      chat_id: 'YOUR_TELEGRAM_CHAT_ID'
+    discord:
+      enabled: False
+      webhook_url: 'YOUR_DISCORD_WEBHOOK_URL'
+  events:
+    signal_generated: False
+    trade_opened: False
+    trade_closed: False
+    stop_loss_hit: False
+    take_profit_hit: False
+    trailing_stop_updated: False
+    config_changed: False
+  min_signal_score: 35.0
+
+# ================= بخش تنظیمات هسته سیستم =================
+core:
+  max_workers: 4
+  max_concurrent_analysis: 4
+  main_loop_interval: 180  # هر 3 دقیقه
+  use_shared_session: False  # در Backtest نیاز نیست
+
+# ================= بخش ذخیره‌سازی =================
+storage:
+  database_path: 'data/backtest_trades.db'
+  save_signal_history: True
+  save_charts: True
+  charts_directory: 'data/backtest_charts'
+
+# ================= بخش مدیریت تنظیمات =================
+config_management:
+  auto_reload: False  # در Backtest غیرفعال
+  check_interval_seconds: 30
+  notify_changes: False
+  backup_before_update: False
+  apply_changes_immediately: False
+  sections_requiring_restart: []
+
+# ================= بخش تنظیمات Trading Brain AI =================
+trading_brain_ai:
+  enabled: False  # غیرفعال در Backtest
+  models_dir: 'models/trading_brain'
+  data_dir: 'data/trading_brain'
+  feature_engineering:
+    use_technical_indicators: True
+    use_price_patterns: True
+    use_volatility_features: True
+    use_volume_features: True
+    lookback_window: 20
+    target_horizons: [1, 5]
+    scaler_type: 'robust'
+    feature_selection: True
+    feature_selection_method: 'importance'
+    importance_threshold: 0.01
+  prediction_models:
+    lstm:
+      enabled: False
+      units: [64, 32]
+      dropout: 0.2
+      learning_rate: 0.001
+      batch_size: 32
+      epochs: 100
+      patience: 10
+      bidirectional: True
+    transformer:
+      enabled: False
+      embedding_dim: 64
+      num_heads: 4
+      ff_dim: 64
+      num_transformer_blocks: 2
+      mlp_units: [32]
+      dropout_rate: 0.25
+      learning_rate: 0.001
+      batch_size: 32
+      epochs: 100
+      patience: 10
+    cnn:
+      enabled: False
+      filters: [64, 128]
+      kernel_sizes: [3, 3]
+      pool_sizes: [2, 2]
+      dense_units: [64]
+      dropout_rate: 0.3
+      learning_rate: 0.001
+      batch_size: 32
+      epochs: 100
+      patience: 10
+    xgboost:
+      enabled: False
+      n_estimators: 100
+      max_depth: 5
+      learning_rate: 0.1
+      subsample: 0.8
+      colsample_bytree: 0.8
+  ensemble:
+    method: 'weighted'
+    weights:
+      lstm: 0.5
+      xgboost: 0.5
+    calibrate_probabilities: True
+    min_confidence_threshold: 0.6
+  online_learning:
+    enabled: False
+    adaptation_frequency: 'after_trades'
+    min_samples_for_update: 50
+    sample_buffer_size: 500
+    learning_rate: 0.01
+    update_position_sizer: False
+    update_ensemble: False
+    use_weighted_samples: True
+  position_sizer:
+    enabled: False
+    model_type: 'ppo'
+    train_steps: 50000
+    learning_rate: 0.0003
+    ent_coef: 0.01
+    batch_size: 64
+    gamma: 0.99
+    window_size: 30
+    reward_scaling: 1.0
+  hyperparameter_optimization:
+    enabled: False
+    n_trials: 20
+    timeout: 3600
+    optimization_metric: 'accuracy'
+    optimization_direction: 'maximize'
+    cv_folds: 3
+
+# ================= بخش تنظیمات ML Signal Integration =================
+ml_signal_integration:
+  enabled: False  # غیرفعال در Backtest
+  enhance_signals: False
+  register_trade_results: False
+  sync_interval_hours: 1
+# ================= تنظیمات Orchestrator V2 =================
+orchestrator:
+  max_concurrent: 10
+  timeout_per_symbol: 30
+  ohlcv_limit: 500
+  send_to_trade_manager: False
+  enabled_analyzers:
+    - trend
+    - momentum
+    - volume
+    - patterns
+    - support_resistance
+    - volatility
+    - harmonic
+    - channel
+    - cyclical
+    - htf
+
+signal_processing:
+  # تنظیمات اصلی
+  symbols: ['BTC-USDT']
+  primary_timeframe: '1h'
+  auto_forward_signals: True
+  signal_max_age_minutes: 30
+  check_incomplete_interval: 60
+  ohlcv_limit_per_tf: 500
+  use_ensemble_strategy: False
+
+  # امتیازدهی
+  scoring:
+    base_score_scale: 100
+    max_confluence_bonus: 0.5
+    htf_alignment_bonus: 0.3
+    htf_misalignment_penalty: 0.3
+
+  # اعتبارسنجی
+  validation:
+    min_rr_ratio: 1.8
+    preferred_rr_ratio: 2.5
+    max_risk_percent: 2.0
+    circuit_breaker:
+      max_signals_per_hour: 100
+      max_signals_per_day: 1000
+    correlation:
+      max_correlation: 0.8
+      check_btc_correlation: False
+    portfolio:
+      max_open_positions: 100
+
+  # اطلاع‌رسانی
+  notification:
+    enabled: False  # در Backtest اعلان نیاز نیست
+    min_score_to_notify: 69.0
+# ================= کش امتیازات تایم‌فریم (برای Backtest) =================
+# توجه: در Backtest این کش به صورت پیش‌فرض غیرفعال است
+# چون نیاز به محاسبات دقیق و تکرارپذیر داریم
+timeframe_score_cache:
+  enabled: False  # در backtest باید False باشد برای دقت
+  max_cache_age_hours: 24
+
+# توضیحات:
+# - در Live Trading: enabled = True (برای سرعت و کارایی)
+# - در Backtest: enabled = False (برای دقت و تکرارپذیری)
+# - اگر enabled = True باشد، ممکن است نتایج backtest کمی متفاوت باشند

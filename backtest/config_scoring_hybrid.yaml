@@ -1,0 +1,73 @@
+# ================= Scoring Config: HYBRID SYSTEM =================
+# این فایل فقط شامل تنظیمات scoring است
+# برای استفاده در backtest با روش HYBRID (ترکیبی از NEW و OLD)
+# ===================================================================
+
+# ================= Orchestrator Settings =================
+orchestrator:
+  # 🔀 HYBRID SYSTEM: Best Signal Selection (like NEW)
+  use_multi_tf_aggregation: false
+
+signal_processing:
+  scoring:
+    # 🔀 HYBRID SYSTEM - ترکیبی
+    scoring_method: hybrid
+
+    # تنظیمات OLD (انتخابی - فقط symbol_performance)
+    old_system:
+      # فقط symbol_performance فعال (بهترین فیچر OLD)
+      symbol_performance_enabled: true
+
+      # بقیه غیرفعال (از NEW استفاده می‌کند)
+      correlation_safety_enabled: false
+      structure_score_enabled: false
+      harmonic_separate_multiplier: false
+      channel_separate_multiplier: false
+      cyclical_separate_multiplier: false
+
+      # مقادیر پیش‌فرض
+      symbol_performance_default: 1.0
+      correlation_safety_default: 1.0
+      structure_score_default: 1.0
+      harmonic_multiplier_default: 1.0
+      channel_multiplier_default: 1.0
+      cyclical_multiplier_default: 1.0
+
+      # Alignment-based confluence (بهتر از RR)
+      use_rr_based_confluence: false
+
+      # محدود به 300 (NEW style)
+      max_final_score: 300
+
+    # وزن‌های analyzer (NEW defaults)
+    weights:
+      trend: 0.3
+      momentum: 0.25
+      volume: 0.2
+      patterns: 0.1
+      support_resistance: 0.08
+      volatility: 0.05
+      harmonic: 0.01
+      channel: 0.005
+      cyclical: 0.003
+      htf: 0.002
+
+    # وزن‌های timeframe (NEW - گسترده‌تر)
+    timeframe_weights:
+      5m: 0.7
+      15m: 0.85
+      1h: 1.0
+      4h: 1.2
+
+    # پارامترهای امتیازدهی
+    base_score_scale: 100
+    max_confluence_bonus: 0.5
+    htf_alignment_bonus: 0.3
+    htf_misalignment_penalty: 0.3
+
+# Validation thresholds برای HYBRID
+validation:
+  min_signal_score: 80         # حداقل 80 از 300 (بین NEW و OLD)
+  strong_signal_threshold: 180  # قوی > 180
+  min_rr_ratio: 2.0
+  max_risk_percent: 2.0
