@@ -20,6 +20,7 @@ import logging
 from signal_generation.signal_info import SignalInfo, SignalScore
 from signal_generation.context import AnalysisContext
 from signal_generation.confidence_calculator import ConfidenceCalculator, ConfidenceMetrics
+from signal_generation.risk_calculator import RiskRewardCalculator
 
 logger = logging.getLogger(__name__)
 
@@ -106,6 +107,9 @@ class MultiTimeframeAggregator:
 
         # Initialize Confidence Calculator
         self.confidence_calculator = ConfidenceCalculator(config)
+
+        # Initialize Risk Reward Calculator
+        self.risk_calculator = RiskRewardCalculator(config)
 
         logger.info("MultiTimeframeAggregator initialized (OLD SYSTEM MODE with Confidence Scoring)")
 
@@ -611,19 +615,35 @@ class MultiTimeframeAggregator:
         dominant_signal = timeframe_signals[dominant_tf]
 
         # Use dominant TF's context for entry/SL/TP calculation
-        # (In real implementation, this would be more sophisticated)
+        # Use the highest weighted timeframe context for SL/TP calculation (OLD SYSTEM approach)
         context = dominant_signal.context
         current_price = context.df['close'].iloc[-1]
+        entry_price = current_price
 
-        # Simple entry/SL/TP calculation (placeholder)
-        if direction == 'LONG':
-            entry_price = current_price
-            stop_loss = current_price * 0.98  # 2% below
-            take_profit = current_price * 1.04  # 4% above
-        else:  # SHORT
-            entry_price = current_price
-            stop_loss = current_price * 1.02  # 2% above
-            take_profit = current_price * 0.96  # 4% below
+        # Calculate SL/TP using RiskRewardCalculator (5-method priority system)
+        # This matches OLD SYSTEM: Harmonic → Channel → S/R → ATR → Percentage
+        risk_config = self.config.get('risk_management', {})
+
+        sl_tp_result = self.risk_calculator.calculate_sl_tp(
+            direction=direction,
+            entry_price=entry_price,
+            context=context,
+            adapted_config=risk_config
+        )
+
+        stop_loss = sl_tp_result['stop_loss']
+        take_profit = sl_tp_result['take_profit']
+        risk_reward_ratio = sl_tp_result['risk_reward_ratio']
+        sl_method = sl_tp_result['sl_method']
+
+        # Check minimum RR requirement
+        min_rr = risk_config.get('min_risk_reward_ratio', 1.5)
+        if risk_reward_ratio < min_rr:
+            logger.info(
+                f"Multi-TF signal rejected for {symbol}: RR {risk_reward_ratio:.2f} < min {min_rr:.2f} "
+                f"(method: {sl_method})"
+            )
+            return None
 
         # Create SignalInfo
         signal = SignalInfo(
@@ -632,7 +652,14 @@ class MultiTimeframeAggregator:
             direction=direction,
             entry_price=entry_price,
             stop_loss=stop_loss,
-            take_profit=take_profit
+            take_profit=take_profit,
+            risk_reward_ratio=risk_reward_ratio
+        )
+
+        logger.info(
+            f"Multi-TF signal SL/TP calculated: Entry={entry_price:.2f}, "
+            f"SL={stop_loss:.2f}, TP={take_profit:.2f}, RR={risk_reward_ratio:.2f}, "
+            f"Method={sl_method}"
         )
 
         # Mark this as multi-TF aggregate via tags
@@ -653,6 +680,8 @@ class MultiTimeframeAggregator:
             'htf_factor': htf_factor,
             'volatility_factor': volatility_factor,
             'total_timeframes': len(timeframe_signals),
+            'sl_method': sl_method,  # Track which method was used for SL/TP
+            'risk_reward_ratio': risk_reward_ratio,
             # Confidence metrics
             'confidence_level': confidence_metrics.confidence_level,
             'overall_confidence': confidence_metrics.overall_confidence,
@@ -681,6 +710,7 @@ class MultiTimeframeAggregator:
 
         # Add key factors
         signal.add_key_factor(f"Multi-TF aggregation ({len(timeframe_signals)} TFs)")
+        signal.add_key_factor(f"SL/TP method: {sl_method} (RR={risk_reward_ratio:.2f})")
         signal.add_key_factor(f"Confidence: {confidence_metrics.confidence_level} ({confidence_metrics.overall_confidence:.0%})")
         signal.add_key_factor(f"Alignment: {alignment_factor:.0%}")
         signal.add_key_factor(f"Volume confirmation: {volume_factor:.0%}")
