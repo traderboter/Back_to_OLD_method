@@ -9,7 +9,7 @@
 2. **SignalOrchestrator**: کنترل‌کننده اصلی که تمام Analyzer ها را هماهنگ می‌کند
 3. **IndicatorCalculator جداگانه**: محاسبات اندیکاتورها جدا از SignalGenerator
 4. **11 Analyzer تخصصی**: Trend, Momentum, Volume, Pattern, SR, Volatility, Harmonic, Channel, Cyclical, HTF, VolumePattern
-5. **30+ الگوی کندل استیک**: الگوهای پیشرفته با کلاس‌های جداگانه
+5. **29 الگوی کندل استیک**: الگوهای پیشرفته با کلاس‌های جداگانه
 6. **5 الگوی چارت**: Double Top/Bottom, Flag/Pennant, Head & Shoulders, Triangle, Wedge
 
 ================================================================
@@ -112,13 +112,13 @@ performance_metrics.json
 8.2 مقداردهی متغیرهای اولیه
 self.exchange_client = None
 self.data_fetcher = None
-self.indicator_calculator = None  # ⭐ جدید در سیستم ماژولار
 self.signal_generator = None  # در واقع SignalOrchestrator
 self.signal_processor = None
 self.trade_manager = None
 self.performance_tracker = None
 self.backup_manager = None
 self.strategy_manager = None
+# توجه: indicator_calculator در initialize_components ایجاد می‌شود نه در __init__
 8.3 تنظیم وضعیت اجرا
 ایجاد instance_id یکتا
 ثبت زمان شروع
@@ -212,7 +212,7 @@ SIGTERM (kill command)
 
       4. ⭐ PatternAnalyzer: تشخیص الگوها (signal_generation/analyzers/patterns/)
 
-         📍 الگوهای کندل استیک (30+ الگو):
+         📍 الگوهای کندل استیک (29 الگو):
          • Doji (Doji, Dragonfly, Gravestone, Long-Legged)
          • Star Patterns (Morning Star, Evening Star, Morning Doji Star, Evening Doji Star)
          • Reversal Patterns (Hammer, Hanging Man, Inverted Hammer, Shooting Star)
@@ -303,24 +303,26 @@ SIGTERM (kill command)
    - self.backup_manager = BackupManager(self.config)
    - پشتیبان‌گیری خودکار دوره‌ای
 
-10. TradeManager (خط تقریبی)
+10. TradeManager (خط 1872-1956)
     - from trade_manager import TradeManager
     - self.trade_manager = TradeManager(self.config, self.db_path)
     - self.trade_manager.initialize_db()
+    - ثبت کالبک‌های جدید (خط 1949-1953)
     - مدیریت معاملات
     - اجرای خرید/فروش
     - مدیریت Take Profit و Stop Loss
     - ذخیره معاملات در: data/trades.db (SQLite)
 
-11. SignalProcessor (خط تقریبی)
+11. SignalProcessor (خط 1958-2000)
     - from signal_processor import SignalProcessor
     - self.signal_processor = SignalProcessor(
         config=self.config,
         market_data_fetcher=self.data_fetcher,
-        signal_generator=self.signal_generator,
+        orchestrator=self.signal_generator,  # توجه: در کد orchestrator نامیده می‌شود
         ml_integration=self.ml_integration
       )
     - await self.signal_processor.initialize()
+    - ثبت کالبک TradeManager (خط 1996)
     - پردازش دوره‌ای سیگنال‌ها
     - ارسال سیگنال‌ها به TradeManager
 
@@ -394,13 +396,14 @@ while not self._shutdown_requested.is_set():
     # 4. انتظار 10 ثانیه
     await asyncio.sleep(10)
 
-بررسی سلامت شامل:
+بررسی سلامت شامل (خط 2519-2582):
 
-وضعیت اتصال به صرافی
+وضعیت اتصال به صرافی (ExchangeClient)
 وضعیت DataFetcher
 وضعیت SignalProcessor
 وضعیت TradeManager
-راه‌اندازی مجدد در صورت خطا
+وضعیت نظارت بر تنظیمات (Config Watcher)
+راه‌اندازی مجدد خودکار در صورت خطا
 
 ================================================================
 📊 جریان داده و ارتباطات بین کامپوننت‌ها (معماری جدید)
@@ -428,7 +431,7 @@ while not self._shutdown_requested.is_set():
 │  │ • TrendAnalyzer                      │   │
 │  │ • MomentumAnalyzer                   │   │
 │  │ • VolumeAnalyzer                     │   │
-│  │ • PatternAnalyzer (35+ patterns)     │   │
+│  │ • PatternAnalyzer (34 patterns)      │   │
 │  │ • SRAnalyzer                         │   │
 │  │ • VolatilityAnalyzer                 │   │
 │  │ • HarmonicAnalyzer                   │   │
@@ -566,7 +569,7 @@ while not self._shutdown_requested.is_set():
 |--------|------------|---------------------|
 | SignalGenerator | تک فایل (~3000 خط) | Orchestrator + 90+ ماژول |
 | Analyzers | 6 تحلیلگر | 11 تحلیلگر تخصصی |
-| الگوهای کندل | محدود | 30+ الگو با کلاس‌های جداگانه |
+| الگوهای کندل | محدود | 29 الگو با کلاس‌های جداگانه |
 | الگوهای چارت | 2-3 الگو | 5 الگوی پیشرفته |
 | IndicatorCalculator | درون SignalGenerator | کلاس جداگانه و مستقل |
 | Maintainability | متوسط | بسیار بالا (ماژولار) |
