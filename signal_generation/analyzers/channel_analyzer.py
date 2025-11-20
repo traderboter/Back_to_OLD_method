@@ -12,6 +12,10 @@ Outputs to context:
     'channel_type': 'ascending' | 'descending' | 'horizontal',
     'upper_bound': float,
     'lower_bound': float,
+    'upper_slope': float,
+    'lower_slope': float,
+    'upper_intercept': float,
+    'lower_intercept': float,
     'channel_width': float,
     'price_position': 'upper' | 'middle' | 'lower',
     'breakout': bool,
@@ -131,6 +135,10 @@ class ChannelAnalyzer(BaseAnalyzer):
                 'channel_type': channel_type.value,  # Return .value for backward compatibility
                 'upper_bound': round(upper_bound, 2),
                 'lower_bound': round(lower_bound, 2),
+                'upper_slope': round(upper_slope, 6),  # NEW: For RiskRewardCalculator
+                'lower_slope': round(lower_slope, 6),  # NEW: For RiskRewardCalculator
+                'upper_intercept': round(upper_intercept, 2),  # NEW: For RiskRewardCalculator
+                'lower_intercept': round(lower_intercept, 2),  # NEW: For RiskRewardCalculator
                 'channel_width': round(channel_width, 2),
                 'price_position': position.value,  # Return .value for backward compatibility
                 'breakout': breakout,

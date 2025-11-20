@@ -14,6 +14,7 @@ Outputs to context:
 - htf: {
     'htf_trend': 'bullish' | 'bearish' | 'neutral',
     'htf_structure': 'higher_highs' | 'lower_lows' | 'ranging',
+    'structure_score': float (0.7-1.3),
     'alignment': bool,
     'htf_support': float | None,
     'htf_resistance': float | None,
@@ -116,12 +117,18 @@ class HTFAnalyzer(BaseAnalyzer):
             
             # Detect structure shift
             structure_shift = self._detect_structure_shift(htf_df)
-            
+
+            # Calculate structure score (NEW)
+            structure_score = self._calculate_structure_score(
+                htf_structure, htf_trend, alignment, structure_shift
+            )
+
             result = {
                 'status': 'ok',
                 'htf_timeframe': htf,
                 'htf_trend': htf_trend,
                 'htf_structure': htf_structure,
+                'structure_score': structure_score,  # NEW: Numeric quality score
                 'alignment': alignment,
                 'htf_support': htf_support,
                 'htf_resistance': htf_resistance,
@@ -298,26 +305,77 @@ class HTFAnalyzer(BaseAnalyzer):
         try:
             if len(htf_df) < 10:
                 return False
-            
+
             recent_highs = htf_df['high'].tail(5).values
             recent_lows = htf_df['low'].tail(5).values
-            
+
             # Check if recent price broke previous structure
             prev_high = htf_df['high'].iloc[-6]
             prev_low = htf_df['low'].iloc[-6]
-            
+
             current_high = recent_highs[-1]
             current_low = recent_lows[-1]
-            
+
             # Break of structure
             if current_high > prev_high * 1.02 or current_low < prev_low * 0.98:
                 return True
-            
+
             return False
-            
+
         except Exception as e:
             logger.debug(f"Structure shift detection failed: {e}")
             return False
-    
+
+    def _calculate_structure_score(
+        self,
+        htf_structure: str,
+        htf_trend: str,
+        alignment: bool,
+        structure_shift: bool
+    ) -> float:
+        """
+        Calculate numeric structure quality score.
+
+        این متد یک امتیاز عددی برای کیفیت ساختار HTF محاسبه می‌کند.
+
+        Score components:
+        - Base score (0.8 - 1.2): Based on structure type
+        - Alignment bonus (+0.1): If HTF aligns with current TF
+        - Structure shift penalty (-0.1): If recent break of structure
+
+        Args:
+            htf_structure: Market structure type
+            htf_trend: HTF trend direction
+            alignment: Whether HTF aligns with current TF
+            structure_shift: Whether structure shifted recently
+
+        Returns:
+            Float score (typically 0.7 - 1.3)
+        """
+        # Base score based on structure clarity
+        if htf_structure == MarketStructure.HIGHER_HIGHS.value:
+            # Strong bullish structure
+            base_score = 1.2
+        elif htf_structure == MarketStructure.LOWER_LOWS.value:
+            # Strong bearish structure
+            base_score = 1.2
+        elif htf_structure == MarketStructure.RANGING.value:
+            # Weak/unclear structure
+            base_score = 0.8
+        else:
+            # Unknown structure
+            base_score = 1.0
+
+        # Alignment bonus
+        if alignment:
+            base_score += 0.1
+
+        # Structure shift penalty (recent BOS may indicate uncertainty)
+        if structure_shift:
+            base_score -= 0.1
+
+        # Ensure score stays within reasonable bounds
+        return round(max(0.7, min(1.3, base_score)), 2)
+
     def _validate_context(self, context: AnalysisContext) -> bool:
         return True  # HTF data is optional

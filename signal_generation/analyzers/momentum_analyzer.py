@@ -19,7 +19,8 @@ Can read from context (context-aware):
 Outputs to context:
 - momentum: {
     'direction': 'bullish' | 'bearish' | 'neutral',
-    'strength': float (0-3),
+    'strength': float (0-3, capped),
+    'momentum_strength': float (raw strength, uncapped),
     'rsi_signal': 'overbought' | 'oversold' | 'neutral',
     'macd_signal': dict,
     'macd_market_type': str (A/B/C/D/X market types),
@@ -235,6 +236,7 @@ class MomentumAnalyzer(BaseAnalyzer):
                 'status': 'ok',
                 'direction': momentum_result['direction'],
                 'strength': momentum_result['strength'],
+                'momentum_strength': abs(momentum_result['bullish_score'] - momentum_result['bearish_score']),  # NEW: Raw momentum strength (uncapped)
                 'rsi_signal': rsi_analysis['signal'],
                 'macd_signal': macd_analysis,
                 'macd_market_type': macd_market_type,  # NEW: Market type detection
