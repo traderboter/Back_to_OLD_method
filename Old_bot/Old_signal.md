@@ -43,7 +43,7 @@ async def process_symbol(self, symbol: str, force_refresh: bool = False, priorit
 
 ### 1.2 فرآیند تولید سیگنال در SignalGenerator
 
-**محل:** `signal_generator.py:4858-5100`
+**محل:** `signal_generator.py:4858-5196`
 
 ```python
 async def analyze_symbol(self, symbol: str, timeframes_data: Dict[str, Optional[pd.DataFrame]])
