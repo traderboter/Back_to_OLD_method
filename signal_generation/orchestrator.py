@@ -189,30 +189,16 @@ class SignalOrchestrator:
         self.tf_score_cache = TimeframeScoreCache(config)
         logger.info(f"TimeframeScoreCache initialized (enabled={self.tf_score_cache.enabled})")
 
-        # ✨ Multi-Timeframe Aggregator - Auto-detect based on scoring_method
-        # Get scoring method to determine aggregation strategy
-        scoring_method = config.get('signal_processing', {}).get('scoring', {}).get('scoring_method', 'new')
-
-        # Determine use_multi_tf_aggregation:
-        # 1. Explicit config takes precedence
-        # 2. Otherwise auto-detect: OLD uses aggregation, NEW/HYBRID use best selection
-        if 'use_multi_tf_aggregation' in orch_config:
-            self.use_multi_tf_aggregation = orch_config['use_multi_tf_aggregation']
-            logger.info(f"Multi-TF mode explicitly set: {self.use_multi_tf_aggregation}")
-        else:
-            # Auto-detect based on scoring method
-            self.use_multi_tf_aggregation = (scoring_method == 'old')
-            logger.info(
-                f"Multi-TF mode auto-detected from scoring_method='{scoring_method}': "
-                f"{self.use_multi_tf_aggregation}"
-            )
+        # ✨ Multi-Timeframe Aggregator (OLD SYSTEM)
+        # Always use multi-TF aggregation (can be disabled via config if needed)
+        self.use_multi_tf_aggregation = orch_config.get('use_multi_tf_aggregation', True)
 
         if self.use_multi_tf_aggregation:
             self.multi_tf_aggregator = MultiTimeframeAggregator(config)
-            logger.info("✅ MultiTimeframeAggregator initialized (OLD SYSTEM MODE)")
+            logger.info("✅ MultiTimeframeAggregator initialized (OLD SYSTEM)")
         else:
             self.multi_tf_aggregator = None
-            logger.info("✅ Best Signal Selection mode (NEW/HYBRID SYSTEM)")
+            logger.info("⚠️ Multi-TF aggregation disabled via config")
 
         # State
         self.is_running = False
@@ -914,84 +900,59 @@ class SignalOrchestrator:
                 logger.warning(f"No valid timeframes data for {symbol}")
                 return None
 
-            # === OLD SYSTEM MODE: Multi-TF Aggregation ===
-            if self.use_multi_tf_aggregation and self.multi_tf_aggregator:
-                logger.info(f"🔄 Using Multi-TF Aggregation (OLD SYSTEM) for {symbol}")
+            # === Multi-TF Aggregation (OLD SYSTEM) ===
+            if not self.use_multi_tf_aggregation or not self.multi_tf_aggregator:
+                logger.warning(f"Multi-TF aggregation is disabled - cannot analyze {symbol}")
+                return None
 
-                # Generate signals with contexts for each timeframe
-                timeframe_signals: Dict[str, TimeframeSignal] = {}
+            logger.info(f"🔄 Using Multi-TF Aggregation (OLD SYSTEM) for {symbol}")
 
-                for timeframe in valid_timeframes.keys():
-                    try:
-                        result = await self._generate_signal_with_context(symbol, timeframe)
-                        if result:
-                            signal, context = result
+            # Generate signals with contexts for each timeframe
+            timeframe_signals: Dict[str, TimeframeSignal] = {}
 
-                            # Build TimeframeSignal
-                            tf_signal = TimeframeSignal(
-                                timeframe=timeframe,
-                                direction=signal.direction,
-                                score=signal.score,
-                                context=context,
-                                volume_confirmed=(context.get_result('volume') or {}).get('is_confirmed', False)
-                            )
+            for timeframe in valid_timeframes.keys():
+                try:
+                    result = await self._generate_signal_with_context(symbol, timeframe)
+                    if result:
+                        signal, context = result
 
-                            timeframe_signals[timeframe] = tf_signal
-                            logger.debug(f"  ✓ Generated {timeframe} signal: {signal.direction}, score={signal.score.final_score:.2f}")
+                        # Build TimeframeSignal
+                        tf_signal = TimeframeSignal(
+                            timeframe=timeframe,
+                            direction=signal.direction,
+                            score=signal.score,
+                            context=context,
+                            volume_confirmed=(context.get_result('volume') or {}).get('is_confirmed', False)
+                        )
 
-                    except Exception as e:
-                        logger.error(f"Error generating signal for {symbol} {timeframe}: {e}")
-                        continue
+                        timeframe_signals[timeframe] = tf_signal
+                        logger.debug(f"  ✓ Generated {timeframe} signal: {signal.direction}, score={signal.score.final_score:.2f}")
 
-                if not timeframe_signals:
-                    logger.debug(f"No valid timeframe signals for {symbol}")
-                    return None
+                except Exception as e:
+                    logger.error(f"Error generating signal for {symbol} {timeframe}: {e}")
+                    continue
 
-                logger.info(f"  📊 Aggregating {len(timeframe_signals)} timeframe signals for {symbol}")
+            if not timeframe_signals:
+                logger.debug(f"No valid timeframe signals for {symbol}")
+                return None
 
-                # Aggregate using OLD SYSTEM approach
-                aggregated_signal = self.multi_tf_aggregator.aggregate_timeframe_scores(
-                    symbol=symbol,
-                    timeframe_signals=timeframe_signals
-                )
+            logger.info(f"  📊 Aggregating {len(timeframe_signals)} timeframe signals for {symbol}")
 
-                if aggregated_signal:
-                    logger.info(
-                        f"✅ Multi-TF aggregated signal for {symbol}: {aggregated_signal.direction}, "
-                        f"score={aggregated_signal.score.final_score:.2f}"
-                    )
-                    return aggregated_signal
-                else:
-                    logger.info(f"No clear direction from multi-TF aggregation for {symbol}")
-                    return None
+            # Aggregate using OLD SYSTEM approach
+            aggregated_signal = self.multi_tf_aggregator.aggregate_timeframe_scores(
+                symbol=symbol,
+                timeframe_signals=timeframe_signals
+            )
 
-            # === NEW SYSTEM MODE: Best Signal Selection ===
-            else:
-                logger.info(f"🎯 Using Best Signal Selection (NEW SYSTEM) for {symbol}")
-
-                # Generate signals for each timeframe
-                signals = []
-                for timeframe in valid_timeframes.keys():
-                    try:
-                        signal = await self.generate_signal_for_symbol(symbol, timeframe)
-                        if signal:
-                            signals.append(signal)
-                    except Exception as e:
-                        logger.error(f"Error generating signal for {symbol} {timeframe}: {e}")
-                        continue
-
-                if not signals:
-                    logger.debug(f"No valid signals generated for {symbol}")
-                    return None
-
-                # Return the signal with highest score
-                best_signal = max(signals, key=lambda s: s.score.final_score)
+            if aggregated_signal:
                 logger.info(
-                    f"✅ Selected best signal for {symbol}: {best_signal.timeframe} "
-                    f"with score {best_signal.score.final_score:.2f}"
+                    f"✅ Multi-TF aggregated signal for {symbol}: {aggregated_signal.direction}, "
+                    f"score={aggregated_signal.score.final_score:.2f}"
                 )
-
-                return best_signal
+                return aggregated_signal
+            else:
+                logger.info(f"No clear direction from multi-TF aggregation for {symbol}")
+                return None
 
         except Exception as e:
             logger.error(f"Error in analyze_symbol for {symbol}: {e}", exc_info=True)
