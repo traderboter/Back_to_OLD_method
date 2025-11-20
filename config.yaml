@@ -1,0 +1,1694 @@
+signal_generation_v2:
+  enabled: true
+  use_legacy_fallback: true
+  timeframes:
+  - 5m
+  - 15m
+  - 1h
+  - 4h
+  minimum_candles_required: 200
+  indicator_calculator:
+    enabled: true
+    cache_indicators: true
+    moving_averages:
+      ema_periods:
+      - 20
+      - 50
+      - 100
+      - 200
+      sma_periods:
+      - 20
+      - 50
+      - 200
+    oscillators:
+      rsi_period: 14
+      macd_fast: 12
+      macd_slow: 26
+      macd_signal: 9
+      stochastic_k: 14
+      stochastic_d: 3
+      stochastic_smooth: 3
+    volatility:
+      atr_period: 14
+      bb_period: 20
+      bb_std: 2
+    volume:
+      volume_sma_period: 20
+      obv_enabled: true
+    per_timeframe:
+      enabled: true
+      5m:
+        rsi_period: 10
+        macd_fast: 8
+        macd_slow: 17
+        macd_signal: 6
+        stoch_k: 10
+        stoch_d: 3
+        stoch_smooth: 2
+        ema_periods:
+        - 10
+        - 20
+        - 50
+        - 100
+        sma_periods:
+        - 10
+        - 20
+        - 50
+        adx_period: 10
+        atr_period: 10
+        bb_period: 15
+        bb_std: 2.0
+      15m:
+        rsi_period: 12
+        macd_fast: 10
+        macd_slow: 21
+        macd_signal: 7
+        stoch_k: 12
+        stoch_d: 3
+        stoch_smooth: 3
+        ema_periods:
+        - 15
+        - 20  # Required by TrendAnalyzer
+        - 30
+        - 50  # Required by TrendAnalyzer
+        - 75
+        - 100  # Required by TrendAnalyzer
+        sma_periods:
+        - 15
+        - 20  # Required by TrendAnalyzer
+        - 30
+        - 50  # Required by TrendAnalyzer
+        - 75
+        adx_period: 12
+        atr_period: 12
+        bb_period: 18
+        bb_std: 2.0
+      1h:
+        rsi_period: 14
+        macd_fast: 12
+        macd_slow: 26
+        macd_signal: 9
+        stoch_k: 14
+        stoch_d: 3
+        stoch_smooth: 3
+        ema_periods:
+        - 20
+        - 50
+        - 100
+        sma_periods:
+        - 20
+        - 50
+        - 100
+        adx_period: 14
+        atr_period: 14
+        bb_period: 20
+        bb_std: 2.0
+      4h:
+        rsi_period: 18
+        macd_fast: 16
+        macd_slow: 35
+        macd_signal: 12
+        stoch_k: 18
+        stoch_d: 4
+        stoch_smooth: 4
+        ema_periods:
+        - 20  # Required by TrendAnalyzer
+        - 30
+        - 50  # Required by TrendAnalyzer
+        - 75
+        - 100  # Required by TrendAnalyzer
+        - 150
+        sma_periods:
+        - 20  # Required by TrendAnalyzer
+        - 30
+        - 50  # Required by TrendAnalyzer
+        - 75
+        - 150
+        adx_period: 18
+        atr_period: 18
+        bb_period: 25
+        bb_std: 2.0
+  analyzers:
+    trend_analyzer:
+      enabled: true
+      weight: 0.3
+      strength_thresholds:
+        strong: 3
+        medium: 2
+        weak: 1
+      trend_strength_per_timeframe:
+        enabled: true
+        5m:
+          min_strength: 0
+          strong_threshold: 4
+          min_slope: 0.0002
+        15m:
+          min_strength: 0
+          strong_threshold: 3
+          min_slope: 0.00015
+        1h:
+          min_strength: 0
+          strong_threshold: 3
+          min_slope: 0.0001
+        4h:
+          min_strength: 0
+          strong_threshold: 2
+          min_slope: 5.0e-05
+      phase_detection:
+        enabled: true
+        lookback_period: 10
+      pullback_detection:
+        enabled: true
+        max_pullback_percent: 5
+    momentum_analyzer:
+      enabled: true
+      weight: 0.25
+      rsi:
+        oversold_threshold: 30
+        overbought_threshold: 70
+        extreme_oversold: 20
+        extreme_overbought: 80
+      rsi_per_timeframe:
+        enabled: true
+        5m:
+          oversold: 39
+          overbought: 60
+          extreme_oversold: 30
+          extreme_overbought: 70
+        15m:
+          oversold: 42
+          overbought: 57
+          extreme_oversold: 32
+          extreme_overbought: 68
+        1h:
+          oversold: 41
+          overbought: 59
+          extreme_oversold: 30
+          extreme_overbought: 70
+        4h:
+          oversold: 44
+          overbought: 55
+          extreme_oversold: 35
+          extreme_overbought: 65
+      macd:
+        crossover_sensitivity: 0.5
+        histogram_threshold: 0
+      macd_per_timeframe:
+        enabled: true
+        5m:
+          histogram_threshold: 0.001
+          crossover_sensitivity: 0.3
+        15m:
+          histogram_threshold: 0.0005
+          crossover_sensitivity: 0.4
+        1h:
+          histogram_threshold: 0.0003
+          crossover_sensitivity: 0.5
+        4h:
+          histogram_threshold: 0.0002
+          crossover_sensitivity: 0.6
+      stochastic:
+        oversold_threshold: 20
+        overbought_threshold: 80
+        cross_sensitivity: 2
+      stochastic_per_timeframe:
+        enabled: true
+        5m:
+          oversold: 15
+          overbought: 85
+        15m:
+          oversold: 18
+          overbought: 82
+        1h:
+          oversold: 20
+          overbought: 80
+        4h:
+          oversold: 25
+          overbought: 75
+      divergence_detection:
+        enabled: true
+        sensitivity: 0.75
+        peak_order: 3
+        peak_distance: 5
+        min_peaks: 2
+        hidden_divergence: true
+      context_aware:
+        use_trend_context: true
+        bullish_trend_bonus: 0.3
+        bearish_trend_bonus: 0.3
+    volume_analyzer:
+      enabled: true
+      weight: 0.15
+      volume_thresholds:
+        high_volume_ratio: 1.5
+        confirmation_ratio: 1.2
+        low_volume_ratio: 0.8
+      volume_per_timeframe:
+        enabled: true
+        5m:
+          high_volume_ratio: 0.8
+          confirmation_ratio: 0.6
+          low_volume_ratio: 0.6
+          breakout_ratio: 1.2
+        15m:
+          high_volume_ratio: 0.7
+          confirmation_ratio: 0.55
+          low_volume_ratio: 0.7
+          breakout_ratio: 1.0
+        1h:
+          high_volume_ratio: 0.6
+          confirmation_ratio: 0.5
+          low_volume_ratio: 0.8
+          breakout_ratio: 0.9
+        4h:
+          high_volume_ratio: 0.55
+          confirmation_ratio: 0.45
+          low_volume_ratio: 0.9
+          breakout_ratio: 0.8
+      obv_analysis:
+        enabled: true
+        trend_period: 10
+      context_aware:
+        require_trend_confirmation: false
+        require_momentum_confirmation: true
+        both_required: false
+    pattern_analyzer:
+      enabled: true
+      weight: 0.1
+      candlestick_patterns:
+        enabled: true
+        min_pattern_strength: 0.4
+        bullish_engulfing: 1.25
+        bearish_engulfing: 1.25
+        morning_star: 1.5
+        evening_star: 1.5
+        three_white_soldiers: 1.6
+        three_black_crows: 1.6
+      pattern_scores_by_timeframe: null
+      chart_patterns:
+        enabled: true
+        min_quality: 0.7
+      context_aware:
+        use_trend_alignment: true
+        trend_aligned_bonus: 0.5
+        trend_opposed_penalty: 0.5
+    sr_analyzer:
+      enabled: true
+      weight: 0.1
+      detection:
+        lookback_period: 50
+        min_touches: 2
+        proximity_percent: 0.5
+        atr_multiplier: 1.0
+      scoring:
+        near_support_bonus: 0.3
+        near_resistance_bonus: 0.3
+        breakout_bonus: 0.5
+    harmonic_analyzer:
+      enabled: false
+      weight: 0.05
+      detection:
+        lookback: 100
+        tolerance: 0.03
+        min_quality: 0.7
+      patterns:
+        gartley: true
+        butterfly: true
+        bat: true
+        crab: true
+    channel_analyzer:
+      enabled: true
+      weight: 0.05
+      detection:
+        lookback: 100
+        min_touches: 3
+        quality_threshold: 0.7
+      scoring:
+        channel_position_weight: 0.3
+        breakout_bonus: 0.4
+    cyclical_analyzer:
+      enabled: false
+      weight: 0.03
+      detection:
+        lookback: 200
+        min_cycles: 2
+        fourier_periods:
+        - 5
+        - 10
+        - 20
+        - 40
+        - 60
+    volatility_analyzer:
+      enabled: true
+      weight: 0.07
+      thresholds:
+        high_volatility: 1.5
+        low_volatility: 0.7
+        extreme_volatility: 1.8
+      volatility_per_timeframe:
+        enabled: true
+        5m:
+          low_threshold: 0.3
+          high_threshold: 1.0
+          extreme_threshold: 2.0
+          stop_low: 1.5
+          stop_normal: 2.0
+          stop_high: 3.0
+        15m:
+          low_threshold: 0.4
+          high_threshold: 1.2
+          extreme_threshold: 2.5
+          stop_low: 1.5
+          stop_normal: 2.0
+          stop_high: 2.8
+        1h:
+          low_threshold: 0.5
+          high_threshold: 1.5
+          extreme_threshold: 3.0
+          stop_low: 1.5
+          stop_normal: 2.0
+          stop_high: 2.5
+        4h:
+          low_threshold: 0.6
+          high_threshold: 2.0
+          extreme_threshold: 4.0
+          stop_low: 1.3
+          stop_normal: 1.8
+          stop_high: 2.2
+      scoring:
+        optimal_range_bonus: 0.2
+        high_volatility_penalty: 0.3
+        low_volatility_penalty: 0.2
+      filters:
+        reject_extreme_volatility: true
+    htf_analyzer:
+      enabled: true
+      weight: 0.1
+      timeframe_selection:
+        method: next_higher
+        fixed_timeframes:
+        - 1h
+        - 4h
+      structure_analysis:
+        sr_lookback: 50
+        sr_atr_multiplier: 1.0
+        trend_indicator: ema
+      scoring:
+        base_score: 1.0
+        confirmation_bonus: 0.2
+        trend_bonus_multiplier: 1.5
+        contradiction_penalty: 0.3
+        trend_penalty_multiplier: 1.5
+        min_score: 0.5
+        max_score: 1.5
+  scoring:
+    timeframe_weights:
+      5m: 0.7
+      15m: 0.85
+      1h: 1.0
+      4h: 1.2
+    bonuses:
+      volume_confirmation: 0.2
+      trend_alignment: 0.3
+      multi_timeframe_confluence: 0.25
+      divergence_detected: 0.15
+    final_score_calculation:
+      method: multiplicative
+      cap_max_score: true
+      min_score: 0
+      max_score: 100
+  validation:
+    min_signal_score: 10   # بهینه‌سازی شده بر اساس backtest analysis
+    strong_signal_threshold: 20  # trades با کیفیت بالا
+    risk_reward:
+      enabled: true
+      min_ratio: 2.0
+      preferred_ratio: 2.5
+    filters:
+      check_circuit_breaker: true
+      check_correlation: true
+      max_correlation: 0.7
+      max_correlated_trades: 2
+      check_portfolio_exposure: true
+      max_open_risk_percent: 10.0
+      reject_extreme_volatility: true
+    timeframe_validation:
+      require_htf_confirmation: false
+      min_confirmed_timeframes: 2
+  context:
+    max_results_history: 10
+    clear_context_between_symbols: true
+    share_between_analyzers: true
+    allow_circular_references: false
+  performance:
+    use_cache: true
+    cache_ttl_seconds: 60
+    parallel_analyzers: true
+    max_parallel_analyzers: 4
+    skip_disabled_analyzers: true
+    early_exit_on_low_score: true
+    early_exit_threshold: 30
+  logging:
+    enabled: true
+    log_level: INFO
+    log_analyzer_results: false
+    log_context_updates: false
+    log_performance_metrics: true
+  experimental:
+    use_ml_enhancement: false
+    adaptive_weights: false
+    context_learning: false
+exchange:
+  api_key: YOUR_KUCOIN_FUTURES_API_KEY
+  api_secret: YOUR_KUCOIN_FUTURES_API_SECRET
+  api_passphrase: YOUR_KUCOIN_FUTURES_API_PASSPHRASE
+  api_version: '2'
+  base_url: https://api-futures.kucoin.com
+  websocket:
+    enabled: true
+    ping_interval: 20
+    auto_reconnect: true
+data_fetching:
+  market_type: futures
+  primary_api: kucoin
+  max_symbols: 0
+  auto_symbols: true
+  fallback_apis: []
+  timeframes:
+  - 5m
+  - 15m
+  - 1h
+  - 4h
+  max_concurrent_fetches: 10
+  rate_limits:
+    requests_per_second: 5
+  delta_updates:
+    enabled: true
+    smart_caching: true
+  cache:
+    use_redis: true
+    use_memory_cache: true
+    expiry_seconds:
+      5m: 300
+      15m: 900
+      1h: 3600
+      4h: 14400
+    redis:
+      host: localhost
+      port: 6379
+      db: 0
+      path: null
+      password: null
+  use_mock_data: false
+ensemble_strategy:
+  enabled: false
+  voting_threshold: 0.6
+  min_strategies_agreement: 2
+  trend_strategy_weight: 1.2
+  mean_reversion_strategy_weight: 1.0
+  breakout_strategy_weight: 1.1
+signal_generation:
+  minimum_signal_score: 10  # بهینه‌سازی شده: 16 trades, 68.8% WR, +45.98 USDT
+  strong_signal_score: 20    # trades با کیفیت بالا: 72.7% WR
+  timeframes:
+  - 5m
+  - 15m
+  - 1h
+  - 4h
+  timeframe_weights:
+    5m: 0.7
+    15m: 0.85
+    1h: 1.0
+    4h: 1.2
+  volume_multiplier_threshold: 1.3
+  volume_confirmation_weight: 1.0
+  divergence_sensitivity: 0.75
+  peak_detection_order: 3
+  peak_detection_distance: 5
+  trend_following_weight: 1.0
+  reversal_weight: 1.0
+  trend_alignment_weight: 1.0
+pattern_scores:
+  # ================================================================================
+  # 📊 Candlestick Patterns (نام‌های واحد - بر اساس تحلیل کد)
+  # ================================================================================
+  # توجه: کد pattern detector از نام‌های واحد استفاده می‌کند (مثل "Engulfing")
+  # و direction را جداگانه در metadata ذخیره می‌کند.
+  # پس نباید از bullish_engulfing/bearish_engulfing استفاده کنیم.
+
+  # --- Basic Reversal Patterns ---
+  hammer:
+    5m: 0.2
+    15m: 1.0
+    1h: 2.7
+    4h: 1.5
+
+  inverted_hammer:
+    5m: 0.6
+    15m: 0.75
+    1h: 0.9
+    4h: 1.1
+
+  hanging_man:
+    5m: 0.7
+    15m: 0.85
+    1h: 1.0
+    4h: 1.2
+
+  shooting_star:  # ❌ عملکرد ضعیف: -6.79 USDT, 28.6% WR (NEW: 0% WR در 1h!)
+    5m: 0.5    # ⬇️ کاهش از 0.7
+    15m: 0.5   # ⬇️ کاهش از 0.85
+    1h: 0.06   # ⬇️⬇️ کاهش شدید از 0.5 - 0% WR, -13.70 USDT (3 trades)
+    4h: 0.5    # ⬇️ کاهش از 1.2
+
+  # --- Engulfing Patterns (واحد - نه جدا) ---
+  engulfing:  # ✅ عملکرد عالی در NEW backtest: +124.76 USDT, 69.2% WR!
+    5m: 1.1    # ⬆️ افزایش از 0.5 - 66.7% WR, +2.63 avg (6 trades)
+    15m: 1.1   # ⬆️ افزایش از 0.5 - 69.2% WR, +3.32 avg (13 trades) ⭐
+    1h: 1.1    # ⬆️ افزایش از 0.5 - 70.0% WR, +3.61 avg (10 trades) ⭐
+    4h: 1.1    # ⬆️ افزایش از 0.5 - 70.0% WR, +2.98 avg (10 trades) ⭐
+
+  # --- Harami Patterns (واحد - نه جدا) ---
+  harami:  # ⚠️ عملکرد متغیر در NEW backtest
+    5m: 0.5    # ➡️ نگه‌داری - 55.6% WR, +1.87 avg (9 trades)
+    15m: 1.68  # ⬆️ افزایش از 0.5 - 71.4% WR, +2.61 avg (7 trades) ⭐
+    1h: 0.06   # ⬇️⬇️ کاهش شدید از 0.5 - 33.3% WR, -2.83 avg (3 trades) ❌
+    4h: 1.68   # ⬆️ افزایش از 0.5 - 75.0% WR, +4.69 avg (4 trades) ⭐
+
+  harami_cross:  # 🆕 الگوی جدید
+    5m: 0.7
+    15m: 0.85
+    1h: 1.0
+    4h: 1.2
+
+  # --- Piercing/Dark Cloud ---
+  piercing_line:  # ❌ عملکرد ضعیف: -16.24 USDT, 37.5% WR
+    5m: 0.5    # ⬇️ کاهش از 0.7
+    15m: 0.5   # ⬇️ کاهش از 0.9
+    1h: 0.5    # ⬇️ کاهش از 1.1
+    4h: 0.5    # ⬇️ کاهش از 1.3
+
+  dark_cloud_cover:  # ❌ عملکرد ضعیف: -17.36 USDT, 50% WR
+    5m: 0.5    # ⬇️ کاهش از 0.8
+    15m: 0.5   # ⬇️ کاهش از 1.0
+    1h: 0.5    # ⬇️ کاهش از 1.2
+    4h: 0.5    # ⬇️ کاهش از 1.5
+
+  # --- Star Patterns ---
+  morning_star:
+    5m: 1.2
+    15m: 1.5
+    1h: 1.8
+    4h: 2.2
+
+  evening_star:
+    5m: 1.2
+    15m: 1.5
+    1h: 1.8
+    4h: 2.2
+
+  morning_doji_star:  # 🆕 الگوی جدید
+    5m: 1.0
+    15m: 1.2
+    1h: 1.5
+    4h: 1.8
+
+  evening_doji_star:  # 🆕 الگوی جدید
+    5m: 1.0
+    15m: 1.2
+    1h: 1.5
+    4h: 1.8
+
+  # --- Soldiers/Crows ---
+  three_white_soldiers:
+    5m: 1.3
+    15m: 1.6
+    1h: 2.0
+    4h: 2.5
+
+  three_black_crows:
+    5m: 1.3
+    15m: 1.6
+    1h: 2.0
+    4h: 2.5
+
+  # --- Doji Variations ---
+  doji:  # ✅ عملکرد خوب در NEW backtest: +39.41 USDT
+    5m: 0.1    # ➡️ نگه‌داری - 57.1% WR, +0.52 avg (7 trades)
+    15m: 0.52  # ⬆️ افزایش از 0.15 - 71.4% WR, +2.66 avg (7 trades) ⭐
+    1h: 0.3   # ⬆️ افزایش از 0.15 - 62.5% WR, +1.62 avg (8 trades)
+    4h: 0.2    # ➡️ نگه‌داری - 50.0% WR, +0.70 avg (6 trades)
+
+  dragonfly_doji:
+    5m: 0.6
+    15m: 0.75
+    1h: 0.9
+    4h: 1.1
+
+  gravestone_doji:  # ✅ عملکرد خوب در 15m
+    5m: 0.6    # ➡️ نگه‌داری
+    15m: 1.46  # ⬆️ افزایش +25% از 0.75 - 66.7% WR, +3.84 avg (3 trades)
+    1h: 0.9    # ➡️ نگه‌داری
+    4h: 1.1    # ➡️ نگه‌داری
+
+  long-legged_doji:  # ✅ عملکرد عالی در NEW backtest: +70.81 USDT, 62.5% WR!
+    5m: 1.56    # ⬆️ افزایش +25% از 0.8 - 62.5% WR, +1.64 avg (8 trades)
+    15m: 1.25  # ⬆️ افزایش +25% از 1.0 - 60.0% WR, +1.68 avg (10 trades)
+    1h: 2.35    # ⬆️ افزایش +25% از 1.2 - 62.5% WR, +2.43 avg (8 trades)
+    4h: 2.97    # ⬆️ افزایش +27% از 1.5 - 62.5% WR, +2.69 avg (8 trades)
+
+  # --- Tweezer Pattern (واحد - نه جدا) ---
+  tweezer:  # ⭐⭐⭐ عملکرد فوق‌العاده در NEW backtest: +189.31 USDT, 66.4% WR!
+    5m: 1.95  # ⬆️ افزایش +25% از 1.0 - 63.2% WR, +2.36 avg (19 trades)
+    15m: 2.5  # ⬆️ افزایش +23% از 1.3 - 65.0% WR, +2.70 avg (20 trades) ⭐
+    1h: 3.12   # ⬆️ افزایش +25% از 1.6 - 65.0% WR, +2.69 avg (20 trades) ⭐
+    4h: 5.62   # ⬆️ افزایش +25% از 2.0 - 72.7% WR, +3.34 avg (11 trades) ⭐⭐
+
+  # --- Abandoned Baby (واحد - نه جدا) ---
+  abandoned_baby:  # ✅ نام واحد (نه bullish_abandoned_baby/bearish_abandoned_baby)
+    5m: 1.1
+    15m: 1.4
+    1h: 1.8
+    4h: 2.3
+
+  # --- Kicking (واحد - نه جدا) ---
+  kicking:  # ❌ عملکرد ضعیف: -13.87 USDT, 30.8% WR
+    5m: 0.5    # ⬇️ کاهش از 0.9
+    15m: 0.5   # ⬇️ کاهش از 1.1
+    1h: 0.5    # ⬇️ کاهش از 1.5
+    4h: 0.5    # ⬇️ کاهش از 2.0
+
+  # --- Other Candlestick Patterns ---
+  spinning_top:  # ⚠️ عملکرد متغیر در NEW backtest
+    5m: 0.08   # ⬇️⬇️ کاهش -50% از 0.3 - 40.0% WR, -0.08 avg (10 trades) ❌
+    15m: 0.3   # ➡️ نگه‌داری - 60.0% WR, +1.80 avg (10 trades)
+    1h: 0.3    # ➡️ نگه‌داری - 57.1% WR, +1.76 avg (14 trades)
+    4h: 0.3    # ➡️ نگه‌داری - 58.3% WR, +1.86 avg (12 trades)
+
+  belt_hold:  # 🆕 الگوی جدید
+    5m: 0.8
+    15m: 1.0
+    1h: 1.2
+    4h: 1.5
+
+  marubozu:  # ✅ عملکرد بهتر در NEW backtest: +49.25 USDT
+    5m: 0.5    # ➡️ نگه‌داری - 57.1% WR, +1.57 avg (7 trades)
+    15m: 0.99  # ⬆️ افزایش +25% از 0.5 - 66.7% WR, +2.33 avg (9 trades)
+    1h: 0.99   # ⬆️ افزایش +25% از 0.5 - 66.7% WR, +1.59 avg (6 trades)
+    4h: 0.5    # ➡️ نگه‌داری - 50.0% WR, +1.95 avg (4 trades)
+
+  three_inside:  # 🆕 الگوی جدید
+    5m: 1.0
+    15m: 1.2
+    1h: 1.5
+    4h: 1.8
+
+  three_outside:  # ⚠️ عملکرد متغیر در NEW backtest
+    5m: 1.0    # ➡️ نگه‌داری - 100% WR, +4.31 avg (2 trades) ⭐⭐
+    15m: 1.2   # ➡️ نگه‌داری
+    1h: 1.5    # ➡️ نگه‌داری - 60.0% WR, +1.61 avg (5 trades)
+    4h: 0.23    # ⬇️ کاهش -50% از 1.8 - 50.0% WR, -1.47 avg (4 trades) ❌
+
+  three_methods:  # 🆕 الگوی جدید
+    5m: 1.0
+    15m: 1.2
+    1h: 1.5
+    4h: 1.8
+
+  mat_hold:  # 🆕 الگوی جدید
+    5m: 1.0
+    15m: 1.2
+    1h: 1.5
+    4h: 1.8
+
+  # ================================================================================
+  # 📈 Chart Patterns (نام‌های lowercase_underscore - بر اساس تحلیل بک‌تست)
+  # ================================================================================
+  # توجه: کد pattern_name.lower().replace(' ', '_') می‌کند
+  # پس "Head and Shoulders" → "head_and_shoulders"
+
+  # --- Head & Shoulders ---
+  head_and_shoulders:  # ✅ Bearish reversal ⭐⭐⭐ (عملکرد عالی: +49.34 USDT)
+    5m: 10.0   # ⬆️ افزایش از 1.5 - عملکرد 741% بهتر از candlesticks
+    15m: 22.5  # ⬆️ افزایش از 2.0 - 83.3% WR, +4.11 USDT
+    1h: 10.0   # ⬆️ افزایش از 2.5 - 58.3% WR, +1.13 USDT
+    4h: 10.0   # ⬆️ افزایش از 3.0 - 50% WR, +0.46 USDT
+
+  inverse_head_and_shoulders:  # ✅ Bullish reversal ⭐⭐⭐
+    5m: 10.0   # ⬆️ افزایش از 1.5 - عملکرد معادل head_and_shoulders
+    15m: 10.0  # ⬆️ افزایش از 2.0
+    1h: 10.0   # ⬆️ افزایش از 2.5
+    4h: 10.0   # ⬆️ افزایش از 3.0
+
+  "Head and Shoulders":  # ✅ Generic name (عملکرد عالی: +49.34 USDT, 56.1% WR)
+    5m: 10.0   # عملکرد 741% بهتر از candlesticks
+    15m: 22.5  # 60% WR, strong reversal signal
+    1h: 10.0   # 70.8% WR, +2.67 USDT ⭐⭐⭐
+    4h: 10.0   # Best chart pattern after Double Top/Bottom
+
+  # --- Wedge Patterns ---
+  falling_wedge:  # ✅ Bullish reversal ⭐⭐
+    5m: 10.0   # ⬆️ افزایش از 1.3 - عملکرد معادل Wedge generic
+    15m: 10.0  # ⬆️ افزایش از 1.6
+    1h: 10.0   # ⬆️ افزایش از 2.0
+    4h: 10.0   # ⬆️ افزایش از 2.5 - 70% win rate, +1.07 USDT
+
+  rising_wedge:  # ✅ Bearish reversal ⭐⭐
+    5m: 10.0   # ⬆️ افزایش از 1.3 - عملکرد معادل Wedge generic
+    15m: 10.0  # ⬆️ افزایش از 1.6
+    1h: 10.0   # ⬆️ افزایش از 2.0
+    4h: 10.0   # ⬆️ افزایش از 2.5
+
+  Wedge:  # ✅ Generic name (عملکرد عالی: +37.06 USDT, 62.5% WR)
+    5m: 15.62    # برگشت به score اصلی - عملکرد 741% بهتر از candlesticks
+    15m: 10.0   # 50% WR, +0.44 avg
+    1h: 15.62    # 64.3% WR, +1.68 avg ⭐⭐
+    4h: 10.0    # 80% WR, +1.48 avg ⭐⭐⭐
+
+  wedge:  # 🔧 Transformed name for code compatibility (lowercase version of "Wedge")
+    5m: 15.62    # Same scores as "Wedge" above
+    15m: 10.0
+    1h: 15.62
+    4h: 10.0
+
+  # --- Double Top/Bottom ---
+  double_top:  # ✅ Bearish reversal ⭐⭐
+    5m: 1.2
+    15m: 1.5
+    1h: 1.8
+    4h: 2.2    # 66.7% win rate
+
+  double_bottom:  # ✅ Bullish reversal ⭐⭐
+    5m: 1.2
+    15m: 1.5
+    1h: 1.8
+    4h: 2.2
+
+  "Double Top/Bottom":  # ✅ Generic name (عملکرد عالی: +60.56 USDT, 57.1% WR)
+    5m: 23.44    # برگشت به score اصلی - عملکرد 741% بهتر از candlesticks
+    15m: 33.75   # 60% WR, +1.38 avg ⭐
+    1h: 23.44    # 47.8% WR, +0.02 avg
+    4h: 33.75    # 80% WR, +2.75 avg ⭐⭐⭐
+
+  "double_top/bottom":  # 🔧 Transformed name for code compatibility (with slash, not underscore)
+    5m: 23.44    # Same scores as "Double Top/Bottom" above
+    15m: 33.75
+    1h: 23.44
+    4h: 33.75
+
+  # --- Triangle Patterns ---
+  ascending_triangle:  # ✅ Bullish continuation
+    5m: 2.0    # ⬆️ افزایش از 1.0 - عملکرد معادل Triangle generic
+    15m: 2.0   # ⬆️ افزایش از 1.2
+    1h: 2.0    # ⬆️ افزایش از 1.5
+    4h: 2.0    # ⬆️ افزایش از 1.8
+
+  descending_triangle:  # ✅ Bearish continuation
+    5m: 2.0    # ⬆️ افزایش از 1.0 - عملکرد معادل Triangle generic
+    15m: 2.0   # ⬆️ افزایش از 1.2
+    1h: 2.0    # ⬆️ افزایش از 1.5
+    4h: 2.0    # ⬆️ افزایش از 1.8
+
+  symmetrical_triangle:  # ✅ Neutral
+    5m: 2.0    # ⬆️ افزایش از 0.8 - عملکرد معادل Triangle generic
+    15m: 2.0   # ⬆️ افزایش از 1.0
+    1h: 2.0    # ⬆️ افزایش از 1.2
+    4h: 2.0    # ⬆️ افزایش از 1.5
+
+  "Ascending Triangle":  # ✅ Generic name (برای سازگاری با detector)
+    5m: 2.0
+    15m: 2.0
+    1h: 2.0
+    4h: 2.0
+
+  "Descending Triangle":  # ✅ Generic name (برای سازگاری با detector)
+    5m: 2.0
+    15m: 2.0
+    1h: 2.0
+    4h: 2.0
+
+  "Symmetrical Triangle":  # ✅ Generic name (برای سازگاری با detector)
+    5m: 2.0
+    15m: 2.0
+    1h: 2.0
+    4h: 2.0
+
+  Triangle:  # ✅ Generic fallback
+    5m: 2.0
+    15m: 2.0
+    1h: 2.0
+    4h: 2.0
+
+  triangle:  # lowercase version for code
+    5m: 2.0
+    15m: 2.0
+    1h: 2.0
+    4h: 2.0
+
+  # --- Flag & Pennant Patterns (Continuation) ---
+  "Bullish Flag":  # ✅ Strong continuation pattern ⭐⭐⭐
+    5m: 2.5
+    15m: 2.5
+    1h: 2.5
+    4h: 2.5
+
+  bullish_flag:  # lowercase_underscore version for code
+    5m: 2.5
+    15m: 2.5
+    1h: 2.5
+    4h: 2.5
+
+  "Bearish Flag":  # ✅ Strong continuation pattern ⭐⭐⭐
+    5m: 2.5
+    15m: 2.5
+    1h: 2.5
+    4h: 2.5
+
+  bearish_flag:  # lowercase_underscore version for code
+    5m: 2.5
+    15m: 2.5
+    1h: 2.5
+    4h: 2.5
+
+  "Bullish Pennant":  # ✅ Strong continuation pattern ⭐⭐⭐
+    5m: 2.5
+    15m: 2.5
+    1h: 2.5
+    4h: 2.5
+
+  bullish_pennant:  # lowercase_underscore version for code
+    5m: 2.5
+    15m: 2.5
+    1h: 2.5
+    4h: 2.5
+
+  "Bearish Pennant":  # ✅ Strong continuation pattern ⭐⭐⭐
+    5m: 2.5
+    15m: 2.5
+    1h: 2.5
+    4h: 2.5
+
+  bearish_pennant:  # lowercase_underscore version for code
+    5m: 2.5
+    15m: 2.5
+    1h: 2.5
+    4h: 2.5
+
+  "Flag/Pennant":  # ✅ Generic fallback
+    5m: 2.5
+    15m: 2.5
+    1h: 2.5
+    4h: 3.9
+
+  "flag/pennant":  # lowercase version for code (with slash preserved)
+    5m: 2.5
+    15m: 2.5
+    1h: 2.5
+    4h: 3.9
+
+  # ================================================================================
+  # 🔧 Indicator-Based Signals (اندیکاتورها - اختیاری)
+  # ================================================================================
+  # این‌ها ممکن است در بک‌تست استفاده نشده باشند (طبق تحلیل)
+
+  macd_bullish_crossover:
+    5m: 1.8
+    15m: 2.0
+    1h: 2.2
+    4h: 2.6
+
+  macd_bearish_crossover:
+    5m: 1.8
+    15m: 2.0
+    1h: 2.2
+    4h: 2.6
+
+  macd_bullish_zero_cross:
+    5m: 1.5
+    15m: 1.8
+    1h: 2.0
+    4h: 2.3
+
+  macd_bearish_zero_cross:
+    5m: 1.5
+    15m: 1.8
+    1h: 2.0
+    4h: 2.3
+
+  rsi_oversold_reversal:
+    5m: 1.8
+    15m: 2.0
+    1h: 2.3
+    4h: 2.8
+
+  rsi_overbought_reversal:
+    5m: 1.8
+    15m: 2.0
+    1h: 2.3
+    4h: 2.8
+
+  rsi_bullish_divergence:
+    5m: 3.0
+    15m: 3.5
+    1h: 3.8
+    4h: 4.5
+
+  rsi_bearish_divergence:
+    5m: 3.0
+    15m: 3.5
+    1h: 3.8
+    4h: 4.5
+
+  rsi_hidden_bullish_divergence:
+    5m: 2.5
+    15m: 3.0
+    1h: 3.3
+    4h: 3.8
+
+  rsi_hidden_bearish_divergence:
+    5m: 2.5
+    15m: 3.0
+    1h: 3.3
+    4h: 3.8
+
+  stochastic_oversold_bullish_cross:
+    5m: 2.0
+    15m: 2.5
+    1h: 2.8
+    4h: 3.2
+
+  stochastic_overbought_bearish_cross:
+    5m: 2.0
+    15m: 2.5
+    1h: 2.8
+    4h: 3.2
+
+  broken_resistance:
+    5m: 2.5
+    15m: 2.8
+    1h: 3.0
+    4h: 3.5
+
+  broken_support:
+    5m: 2.5
+    15m: 2.8
+    1h: 3.0
+    4h: 3.5
+
+market_regime:
+  enabled: true
+  adx_period: 14
+  volatility_period: 20
+  strong_trend_threshold: 25
+  weak_trend_threshold: 20
+  high_volatility_threshold: 1.5
+  low_volatility_threshold: 0.5
+  adapt_strategy: true
+signal_processing:
+  symbols: []
+  auto_forward_signals: true
+  signal_max_age_minutes: 30
+  check_incomplete_interval: 60
+  ohlcv_limit_per_tf: 500
+  use_ensemble_strategy: true
+  notification:
+    enabled: true
+    min_score_to_notify: 69.0
+  scoring:
+    # ⚙️ روش امتیازدهی - برای backtest و مقایسه
+    # 'new': سیستم جدید (8 ضریب، محدود به 300)
+    # 'old': سیستم قدیمی (13 ضریب، نامحدود)
+    # 'hybrid': ترکیبی (NEW base + OLD multipliers)
+    scoring_method: new
+
+    # تنظیمات روش قدیمی (OLD SYSTEM) - فقط در صورت انتخاب 'old' یا 'hybrid'
+    old_system:
+      # ضرایب اضافی سیستم قدیمی که در NEW حذف شده
+      symbol_performance_enabled: false       # 0.8-1.3 (Adaptive Learning)
+      correlation_safety_enabled: false       # 0.5-1.0
+      structure_score_enabled: false          # 0.8-1.2
+      harmonic_separate_multiplier: false     # 1.0-1.2
+      channel_separate_multiplier: false      # 1.0-1.1
+      cyclical_separate_multiplier: false     # 1.0-1.1
+
+      # اگر فعال باشند:
+      symbol_performance_default: 1.0
+      correlation_safety_default: 1.0
+      structure_score_default: 1.0
+      harmonic_multiplier_default: 1.0
+      channel_multiplier_default: 1.0
+      cyclical_multiplier_default: 1.0
+
+      # تنظیمات confluence برای OLD (RR-based)
+      use_rr_based_confluence: true           # true = RR-based, false = Alignment-based
+
+      # محدودیت امتیاز نهایی (0 = نامحدود)
+      max_final_score: 0                      # 0 = unlimited (OLD style), 300 = NEW style
+
+    weights:
+      trend: 0.3
+      momentum: 0.25
+      volume: 0.2
+      patterns: 0.1
+      support_resistance: 0.08
+      volatility: 0.05
+      harmonic: 0.01
+      channel: 0.005
+      cyclical: 0.003
+      htf: 0.002
+    timeframe_weights:
+      5m: 0.7
+      15m: 0.85
+      1h: 1.0
+      4h: 1.2
+    weights_per_timeframe:
+      enabled: true
+      5m:
+        trend: 0.2
+        momentum: 0.35
+        volume: 0.25
+        patterns: 0.1
+        support_resistance: 0.05
+        volatility: 0.05
+      15m:
+        trend: 0.25
+        momentum: 0.3
+        volume: 0.23
+        patterns: 0.1
+        support_resistance: 0.07
+        volatility: 0.05
+      1h:
+        trend: 0.3
+        momentum: 0.25
+        volume: 0.2
+        patterns: 0.1
+        support_resistance: 0.08
+        volatility: 0.05
+        harmonic: 0.01
+        channel: 0.005
+        cyclical: 0.003
+        htf: 0.002
+      4h:
+        trend: 0.35
+        momentum: 0.2
+        volume: 0.18
+        patterns: 0.12
+        support_resistance: 0.1
+        volatility: 0.05
+    base_score_scale: 100
+    max_confluence_bonus: 0.5
+    htf_alignment_bonus: 0.3
+    htf_misalignment_penalty: 0.3
+timeframe_score_cache:
+  enabled: true
+  max_cache_age_hours: 24
+trading:
+  mode: simulation
+  auto_update_prices: true
+  price_update_interval: 10
+  multi_tp:
+    enabled: false
+risk_management:
+  account_balance: 10000.0
+  account_risk_multiplier: 1.0
+  max_risk_per_trade_percent: 1.5
+  max_risk_per_symbol_percent: 5.0
+  max_daily_risk_percent: 5.0
+  max_open_risk_percent: 10.0
+  max_open_trades: 10
+  max_trades_per_symbol: 1
+  min_risk_reward_ratio: 3.0
+  preferred_risk_reward_ratio: 2.5
+  use_correlation_check: true
+  max_correlation_threshold: 0.7
+  max_correlated_trades: 2
+  correlation_timeframe: 4h
+  correlation_period: 100
+  use_trailing_stop: true
+  trailing_stop_activation_percent: 3.0
+  trailing_stop_distance_percent: 2.25
+  use_atr_based_trailing: true
+  atr_trailing_multiplier: 2.25
+  atr_trailing_period: 21
+  use_structure_based_stops: false
+  swing_detection_lookback: 21
+  use_time_based_stops: false
+  max_trade_duration_hours: 48
+  use_dynamic_position_sizing: true
+  drawdown_protection: true
+  max_drawdown_percent: 20.0
+  winning_streak_factor: 1.1
+  losing_streak_factor: 0.9
+  max_risk_increase: 1.5
+  kelly_fraction: 0.5
+  allow_opposite_trades: false
+  fixed_position_size: 200
+  max_position_size: 200
+  default_stop_loss_percent: 3
+  btc_correlation:
+    consider_btc_trend: true
+    btc_symbol: BTCUSDT
+    correlation_timeframes:
+    - 15m
+    - 1h
+    - 4h
+    - 1d
+    correlation_timeframe_weights:
+    - 0.1
+    - 0.2
+    - 0.3
+    - 0.4
+    primary_correlation_timeframe: 1h
+    correlation_period: 100
+    inverse_correlation_threshold: -0.2
+    zero_correlation_threshold: 0.2
+    strong_correlation_threshold: 0.4
+    analyze_lag_correlation: true
+    max_lag_periods: 5
+    btc_trend_timeframe: 4h
+    btc_trend_period: 50
+    btc_trend_ema_fast: 20
+    btc_trend_ema_slow: 50
+    btc_trend_strength_threshold: 0.01
+    analyze_btc_volume: true
+    btc_volume_timeframe: 1d
+    btc_volume_period: 20
+    btc_high_volume_threshold: 1.5
+    correlation_cache_expiry_seconds: 3600
+    btc_trend_cache_expiry: 1800
+    btc_volume_cache_expiry: 1800
+backtest:
+  results_dir: backtest_results
+  commission_rate: 0.0006
+  slippage: 0.0005
+  parameters_to_test:
+  - signal_generation.minimum_signal_score
+  - risk_management.max_risk_per_trade_percent
+  - risk_management.trailing_stop_distance_percent
+  - risk_management.atr_trailing_multiplier
+  parallel_backtests: true
+  max_workers: 4
+logging:
+  level: INFO
+  format: '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+  file: logs/crypto_bot.log
+  rotate: true
+  max_size: 10485760
+  backup_count: 5
+notification:
+  enabled: false
+  channels:
+    telegram:
+      enabled: false
+      token: YOUR_TELEGRAM_BOT_TOKEN
+      chat_id: YOUR_TELEGRAM_CHAT_ID
+    discord:
+      enabled: false
+      webhook_url: YOUR_DISCORD_WEBHOOK_URL
+  events:
+    signal_generated: false
+    trade_opened: true
+    trade_closed: true
+    stop_loss_hit: true
+    take_profit_hit: true
+    trailing_stop_updated: false
+    config_changed: true
+  min_signal_score: 35.0
+core:
+  max_workers: 8
+  max_concurrent_analysis: 8
+  main_loop_interval: 300
+  use_shared_session: true
+storage:
+  database_path: data/trades.db
+  save_signal_history: true
+  save_charts: true
+  charts_directory: data/charts
+config_management:
+  auto_reload: true
+  check_interval_seconds: 30
+  notify_changes: true
+  backup_before_update: true
+  apply_changes_immediately: true
+  sections_requiring_restart:
+  - exchange.api_key
+  - exchange.api_secret
+  - exchange.api_passphrase
+  - data_fetching.market_type
+  - data_fetching.primary_api
+  - data_fetching.cache.use_redis
+  - storage.database_path
+trading_brain_ai:
+  enabled: false
+  initial_training_enabled: false
+  models_dir: models/trading_brain
+  data_dir: data/trading_brain
+  feature_engineering:
+    use_technical_indicators: true
+    use_price_patterns: true
+    use_volatility_features: true
+    use_volume_features: true
+    lookback_window: 20
+    target_horizons:
+    - 1
+    - 5
+    scaler_type: robust
+    feature_selection: true
+    feature_selection_method: importance
+    importance_threshold: 0.01
+  prediction_models:
+    lstm:
+      enabled: true
+      units:
+      - 64
+      - 32
+      dropout: 0.2
+      learning_rate: 0.001
+      batch_size: 32
+      epochs: 100
+      patience: 10
+      bidirectional: true
+    transformer:
+      enabled: false
+      embedding_dim: 64
+      num_heads: 4
+      ff_dim: 64
+      num_transformer_blocks: 2
+      mlp_units:
+      - 32
+      dropout_rate: 0.25
+      learning_rate: 0.001
+      batch_size: 32
+      epochs: 100
+      patience: 10
+    cnn:
+      enabled: false
+      filters:
+      - 64
+      - 128
+      kernel_sizes:
+      - 3
+      - 3
+      pool_sizes:
+      - 2
+      - 2
+      dense_units:
+      - 64
+      dropout_rate: 0.3
+      learning_rate: 0.001
+      batch_size: 32
+      epochs: 100
+      patience: 10
+    xgboost:
+      enabled: true
+      n_estimators: 100
+      max_depth: 5
+      learning_rate: 0.1
+      subsample: 0.8
+      colsample_bytree: 0.8
+  ensemble:
+    method: weighted
+    weights:
+      lstm: 0.5
+      xgboost: 0.5
+    calibrate_probabilities: true
+    min_confidence_threshold: 0.6
+  online_learning:
+    enabled: false
+    adaptation_frequency: after_trades
+    min_samples_for_update: 50
+    sample_buffer_size: 500
+    learning_rate: 0.01
+    update_position_sizer: true
+    update_ensemble: true
+    use_weighted_samples: true
+  position_sizer:
+    enabled: false
+    model_type: ppo
+    train_steps: 50000
+    learning_rate: 0.0003
+    ent_coef: 0.01
+    batch_size: 64
+    gamma: 0.99
+    window_size: 30
+    reward_scaling: 1.0
+  hyperparameter_optimization:
+    enabled: false
+    n_trials: 20
+    timeout: 3600
+    optimization_metric: accuracy
+    optimization_direction: maximize
+    cv_folds: 3
+ml_signal_integration:
+  enabled: false
+  enhance_signals: true
+  register_trade_results: true
+  sync_interval_hours: 1
+patterns:
+  engulfing:
+    lookback_window: 5
+    recency_multipliers:
+    - 1.0
+    - 0.95
+    - 0.85
+    - 0.75
+    - 0.6
+    - 0.4
+  morning_star:
+    lookback_window: 5
+    recency_multipliers:
+    - 1.0
+    - 0.95
+    - 0.85
+    - 0.75
+    - 0.6
+    - 0.4
+  evening_star:
+    lookback_window: 5
+    recency_multipliers:
+    - 1.0
+    - 0.95
+    - 0.85
+    - 0.75
+    - 0.6
+    - 0.4
+  three_white_soldiers:
+    lookback_window: 5
+    recency_multipliers:
+    - 1.0
+    - 0.95
+    - 0.85
+    - 0.75
+    - 0.6
+    - 0.4
+  three_black_crows:
+    lookback_window: 5
+    recency_multipliers:
+    - 1.0
+    - 0.95
+    - 0.85
+    - 0.75
+    - 0.6
+    - 0.4
+  dragonfly_doji:
+    lookback_window: 5
+    recency_multipliers:
+    - 1.0
+    - 0.85
+    - 0.7
+    - 0.55
+    - 0.4
+    - 0.25
+  gravestone_doji:
+    lookback_window: 5
+    recency_multipliers:
+    - 1.0
+    - 0.85
+    - 0.7
+    - 0.55
+    - 0.4
+    - 0.25
+  three_inside:
+    lookback_window: 5
+    recency_multipliers:
+    - 1.0
+    - 0.95
+    - 0.85
+    - 0.75
+    - 0.6
+    - 0.4
+  three_outside:
+    lookback_window: 5
+    recency_multipliers:
+    - 1.0
+    - 0.95
+    - 0.85
+    - 0.75
+    - 0.6
+    - 0.4
+  three_methods:
+    lookback_window: 5
+    recency_multipliers:
+    - 1.0
+    - 0.95
+    - 0.85
+    - 0.75
+    - 0.6
+    - 0.4
+  mat_hold:
+    lookback_window: 5
+    recency_multipliers:
+    - 1.0
+    - 0.95
+    - 0.85
+    - 0.75
+    - 0.6
+    - 0.4
+  hammer:
+    lookback_window: 5
+    recency_multipliers:
+    - 1.0
+    - 0.9
+    - 0.8
+    - 0.7
+    - 0.6
+    - 0.5
+  shooting_star:
+    lookback_window: 5
+    recency_multipliers:
+    - 1.0
+    - 0.9
+    - 0.8
+    - 0.7
+    - 0.6
+    - 0.5
+  inverted_hammer:
+    lookback_window: 5
+    recency_multipliers:
+    - 1.0
+    - 0.9
+    - 0.8
+    - 0.7
+    - 0.6
+    - 0.5
+  hanging_man:
+    lookback_window: 5
+    recency_multipliers:
+    - 1.0
+    - 0.9
+    - 0.8
+    - 0.7
+    - 0.6
+    - 0.5
+  piercing_line:
+    lookback_window: 5
+    recency_multipliers:
+    - 1.0
+    - 0.9
+    - 0.8
+    - 0.7
+    - 0.6
+    - 0.5
+  dark_cloud_cover:
+    lookback_window: 5
+    recency_multipliers:
+    - 1.0
+    - 0.9
+    - 0.8
+    - 0.7
+    - 0.6
+    - 0.5
+  morning_doji_star:
+    lookback_window: 5
+    recency_multipliers:
+    - 1.0
+    - 0.9
+    - 0.8
+    - 0.7
+    - 0.6
+    - 0.5
+  evening_doji_star:
+    lookback_window: 5
+    recency_multipliers:
+    - 1.0
+    - 0.9
+    - 0.8
+    - 0.7
+    - 0.6
+    - 0.5
+  marubozu:
+    lookback_window: 5
+    recency_multipliers:
+    - 1.0
+    - 0.9
+    - 0.8
+    - 0.7
+    - 0.6
+    - 0.5
+  belt_hold:
+    lookback_window: 5
+    recency_multipliers:
+    - 1.0
+    - 0.9
+    - 0.8
+    - 0.7
+    - 0.6
+    - 0.5
+  long_legged_doji:
+    lookback_window: 5
+    recency_multipliers:
+    - 1.0
+    - 0.8
+    - 0.6
+    - 0.4
+    - 0.2
+    - 0.1
+  doji:
+    lookback_window: 5
+    recency_multipliers:
+    - 1.0
+    - 0.7
+    - 0.5
+    - 0.3
+    - 0.15
+    - 0.05
+  harami:
+    lookback_window: 5
+    recency_multipliers:
+    - 1.0
+    - 0.85
+    - 0.7
+    - 0.55
+    - 0.4
+    - 0.25
+  harami_cross:
+    lookback_window: 5
+    recency_multipliers:
+    - 1.0
+    - 0.85
+    - 0.7
+    - 0.55
+    - 0.4
+    - 0.25
+  spinning_top:
+    lookback_window: 5
+    recency_multipliers:
+    - 1.0
+    - 0.7
+    - 0.5
+    - 0.3
+    - 0.15
+    - 0.05
+  tweezer:
+    lookback_window: 5
+    recency_multipliers:
+    - 1.0
+    - 0.9
+    - 0.8
+    - 0.7
+    - 0.6
+    - 0.5
+    tolerance: 0.001
+  abandoned_baby:
+    lookback_window: 5
+    recency_multipliers:
+    - 1.0
+    - 0.95
+    - 0.85
+    - 0.75
+    - 0.6
+    - 0.4
+    penetration: 0.3
+  kicking:
+    lookback_window: 5
+    recency_multipliers:
+    - 1.0
+    - 0.95
+    - 0.85
+    - 0.75
+    - 0.6
+    - 0.4
+momentum:
+  rsi_overbought: 70
+  rsi_oversold: 30
+  macd_threshold: 1.0
+  stoch_overbought: 80
+  stoch_oversold: 20
+  per_timeframe:
+    enabled: true
+    5m:
+      rsi_overbought: 75
+      rsi_oversold: 25
+      macd_threshold: 0.5
+      stoch_overbought: 85
+      stoch_oversold: 15
+    15m:
+      rsi_overbought: 72
+      rsi_oversold: 28
+      macd_threshold: 0.75
+    1h:
+      rsi_overbought: 70
+      rsi_oversold: 30
+      macd_threshold: 1.0
+    4h:
+      rsi_overbought: 65
+      rsi_oversold: 35
+      macd_threshold: 1.5
+      stoch_overbought: 75
+      stoch_oversold: 25
+trend:
+  adx_strong_trend: 25
+  ema_alignment_threshold: 0.001
+  per_timeframe:
+    enabled: true
+    5m:
+      adx_strong_trend: 30
+      ema_alignment_threshold: 0.002
+    15m:
+      adx_strong_trend: 27
+      ema_alignment_threshold: 0.0015
+    1h:
+      adx_strong_trend: 25
+      ema_alignment_threshold: 0.001
+    4h:
+      adx_strong_trend: 20
+      ema_alignment_threshold: 0.0008
+volume:
+  volume_high_ratio: 1.5
+  volume_low_ratio: 0.5
+  per_timeframe:
+    enabled: true
+    5m:
+      volume_high_ratio: 2.0
+      volume_low_ratio: 0.4
+    15m:
+      volume_high_ratio: 1.7
+      volume_low_ratio: 0.45
+    1h:
+      volume_high_ratio: 1.5
+      volume_low_ratio: 0.5
+    4h:
+      volume_high_ratio: 1.3
+      volume_low_ratio: 0.6
+volatility:
+  atr_high_multiplier: 1.5
+  atr_low_multiplier: 0.5
+  bb_squeeze_threshold: 0.1
+  per_timeframe:
+    enabled: true
+    5m:
+      atr_high_multiplier: 2.0
+      atr_low_multiplier: 0.4
+      bb_squeeze_threshold: 0.08
+    15m:
+      atr_high_multiplier: 1.7
+      atr_low_multiplier: 0.45
+      bb_squeeze_threshold: 0.09
+    1h:
+      atr_high_multiplier: 1.5
+      atr_low_multiplier: 0.5
+      bb_squeeze_threshold: 0.1
+    4h:
+      atr_high_multiplier: 1.3
+      atr_low_multiplier: 0.6
+      bb_squeeze_threshold: 0.12
