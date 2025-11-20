@@ -17,7 +17,7 @@ Date: 2025-10-23
 
 import asyncio
 from datetime import datetime, timedelta
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Any
 import logging
 from pathlib import Path
 import json
@@ -597,6 +597,74 @@ class BacktestEngineV2:
         # به‌روزرسانی معاملات
         self.trade_manager.update_all_trades(prices, current_time)
 
+    def _build_trade_record(self, trade) -> Dict[str, Any]:
+        """
+        Build detailed trade record with extracted metadata fields.
+
+        Args:
+            trade: BacktestTrade object
+
+        Returns:
+            Dictionary with trade data and extracted metadata
+        """
+        # Extract key metadata fields for easier analysis
+        metadata = trade.metadata or {}
+
+        # Extract sl_method (NEW SYSTEM)
+        sl_method = metadata.get('sl_method', 'unknown')
+
+        # Extract confidence level (NEW SYSTEM)
+        confidence_data = metadata.get('confidence', {})
+        confidence_level = confidence_data.get('level', 'UNKNOWN')
+        confidence_overall = confidence_data.get('overall', 0.0)
+
+        # Extract score breakdown (NEW SYSTEM 13 multipliers)
+        score_breakdown = metadata.get('score_breakdown', {})
+        base_score = score_breakdown.get('base_score', 0.0)
+
+        # Extract aggregation info
+        aggregation_method = metadata.get('aggregation_method', 'unknown')
+        timeframes_used = metadata.get('timeframes_used', [])
+        alignment_factor = metadata.get('alignment_factor', 0.0)
+
+        # Build record with both direct fields and extracted metadata
+        record = {
+            # Basic trade info
+            'trade_id': trade.trade_id,
+            'symbol': trade.symbol,
+            'direction': trade.direction.value,
+            'entry_price': trade.entry_price,
+            'entry_time': trade.entry_time.isoformat(),
+            'exit_price': trade.exit_price,
+            'exit_time': trade.exit_time.isoformat() if trade.exit_time else None,
+            'position_size': trade.position_size,
+            'stop_loss': trade.stop_loss,
+            'take_profit': trade.take_profit,
+            'realized_pnl': trade.realized_pnl,
+            'exit_reason': trade.exit_reason.value if trade.exit_reason else None,
+            'duration': str(trade.exit_time - trade.entry_time) if trade.exit_time else None,
+            'mfe': trade.max_favorable_excursion,
+            'mae': trade.max_adverse_excursion,
+
+            # Signal info
+            'signal_score': trade.signal_score,
+            'timeframe': trade.timeframe,
+
+            # 🆕 Extracted NEW SYSTEM metadata (for easy filtering/analysis)
+            'sl_method': sl_method,
+            'confidence_level': confidence_level,
+            'confidence_overall': confidence_overall,
+            'base_score': base_score,
+            'aggregation_method': aggregation_method,
+            'timeframes_count': len(timeframes_used),
+            'alignment_factor': alignment_factor,
+
+            # Complete metadata as JSON (for full details)
+            'metadata_json': json.dumps(metadata, default=str) if metadata else '{}'
+        }
+
+        return record
+
     async def _collect_results(self):
         """جمع‌آوری نتایج نهایی"""
         logger.info("Collecting backtest results...")
@@ -606,26 +674,7 @@ class BacktestEngineV2:
 
         # تاریخچه معاملات
         self.results['trades'] = [
-            {
-                'trade_id': t.trade_id,
-                'symbol': t.symbol,
-                'direction': t.direction.value,
-                'entry_price': t.entry_price,
-                'entry_time': t.entry_time.isoformat(),
-                'exit_price': t.exit_price,
-                'exit_time': t.exit_time.isoformat() if t.exit_time else None,
-                'position_size': t.position_size,
-                'stop_loss': t.stop_loss,
-                'take_profit': t.take_profit,
-                'realized_pnl': t.realized_pnl,
-                'exit_reason': t.exit_reason.value if t.exit_reason else None,
-                'duration': str(t.exit_time - t.entry_time) if t.exit_time else None,
-                'mfe': t.max_favorable_excursion,
-                'mae': t.max_adverse_excursion,
-                'signal_score': t.signal_score,  # 🆕 Add signal score
-                'timeframe': t.timeframe,  # 🆕 Add timeframe
-                'metadata_json': json.dumps(t.metadata, default=str) if t.metadata else '{}'  # 🆕 Complete analysis metadata
-            }
+            self._build_trade_record(t)
             for t in self.trade_manager.get_trade_history()
         ]
 

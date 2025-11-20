@@ -705,7 +705,10 @@ class MultiTimeframeAggregator:
             volume_factor=volume_factor,
             htf_factor=htf_factor,
             volatility_factor=volatility_factor,
-            confidence_metrics=confidence_metrics
+            confidence_metrics=confidence_metrics,
+            sl_method=sl_method,
+            risk_reward_ratio=risk_reward_ratio,
+            aggregated_score=score
         )
 
         # Add key factors
@@ -729,7 +732,10 @@ class MultiTimeframeAggregator:
         volume_factor: float,
         htf_factor: float,
         volatility_factor: float,
-        confidence_metrics: ConfidenceMetrics
+        confidence_metrics: ConfidenceMetrics,
+        sl_method: str,
+        risk_reward_ratio: float,
+        aggregated_score: SignalScore
     ) -> Dict[str, Any]:
         """
         Build comprehensive metadata from multi-timeframe aggregation.
@@ -745,6 +751,9 @@ class MultiTimeframeAggregator:
             htf_factor: HTF alignment factor
             volatility_factor: Volatility adjustment factor
             confidence_metrics: Confidence metrics object
+            sl_method: SL/TP calculation method used
+            risk_reward_ratio: Calculated risk/reward ratio
+            aggregated_score: Complete score object with all multipliers
 
         Returns:
             Complete metadata dictionary
@@ -803,11 +812,35 @@ class MultiTimeframeAggregator:
             'direction': direction,
             'final_score': final_score,
 
+            # SL/TP calculation (🆕 NEW SYSTEM)
+            'sl_method': sl_method,
+            'risk_reward_ratio': risk_reward_ratio,
+
             # Aggregation factors
             'alignment_factor': alignment_factor,
             'volume_factor': volume_factor,
             'htf_factor': htf_factor,
             'volatility_factor': volatility_factor,
+
+            # 🆕 Score breakdown (13 multipliers from NEW SYSTEM)
+            # Use getattr with defaults for safety (multi-TF aggregation may not populate all fields)
+            'score_breakdown': {
+                'base_score': getattr(aggregated_score, 'base_score', 0.0),
+                'timeframe_weight': getattr(aggregated_score, 'timeframe_weight', 1.0),
+                'trend_alignment': getattr(aggregated_score, 'trend_alignment', 1.0),
+                'volume_confirmation': getattr(aggregated_score, 'volume_confirmation', 1.0),
+                'pattern_quality': getattr(aggregated_score, 'pattern_quality', 1.0),
+                'confluence_score': getattr(aggregated_score, 'confluence_score', 0.0),
+                'symbol_performance_factor': getattr(aggregated_score, 'symbol_performance_factor', 1.0),
+                'correlation_safety_factor': getattr(aggregated_score, 'correlation_safety_factor', 1.0),
+                'macd_analysis_score': getattr(aggregated_score, 'macd_analysis_score', 1.0),
+                'structure_score': getattr(aggregated_score, 'structure_score', 1.0),
+                'volatility_score': getattr(aggregated_score, 'volatility_score', 1.0),
+                'harmonic_pattern_score': getattr(aggregated_score, 'harmonic_pattern_score', 1.0),
+                'price_channel_score': getattr(aggregated_score, 'price_channel_score', 1.0),
+                'cyclical_pattern_score': getattr(aggregated_score, 'cyclical_pattern_score', 1.0),
+                'final_score': getattr(aggregated_score, 'final_score', 0.0)
+            },
 
             # Confidence metrics
             'confidence': {
