@@ -1,0 +1,244 @@
+{
+  "signal_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+  "timestamp": "2024-12-01T10:00:00",
+  "symbol": "BTCUSDT",
+  "timeframe": "1h",
+  "direction": "LONG",
+
+  "entry_price": 95000.0,
+  "stop_loss": 94000.0,
+  "take_profit": 96000.0,
+  "risk_reward_ratio": 1.0,
+  "position_size_percent": 2.0,
+
+  "confidence": 0.85,
+  "validation_passed": true,
+  "status": "pending",
+
+  "score": {
+    "base_score": 75.0,
+    "final_score": 82.5,
+    "signal_strength": "STRONG",
+    "confidence": 0.85,
+    "contributing_analyzers": ["trend", "momentum", "patterns", "volume"]
+  },
+
+  "contributing_analyzers": [
+    "trend",
+    "momentum",
+    "patterns",
+    "volume"
+  ],
+
+  "key_factors": [
+    "Hammer pattern detected (confidence: 85.0%)",
+    "Pattern quality: 88.5/100",
+    "Strong lower shadow: 63.9%",
+    "Aligned with bullish trend (strength: 8.5)",
+    "Volume confirmed"
+  ],
+
+  "analysis_summary": {
+    "patterns": {
+      "status": "ok",
+      "candlestick_patterns": [
+        {
+          "name": "Hammer",
+          "type": "candlestick",
+          "direction": "bullish",
+          "base_strength": 2,
+          "adjusted_strength": 3.0,
+          "confidence": 0.85,
+          "location": "current",
+          "candles_ago": 0,
+          "recency_multiplier": 1.0,
+          "trend_aligned": true,
+          "momentum_confirmed": true,
+          "volume_confirmed": true,
+          "metadata": {
+            "lower_shadow_ratio": 0.639,
+            "upper_shadow_ratio": 0.08,
+            "body_position": 0.92,
+            "body_size": 100.0,
+            "full_range": 700.0,
+            "quality_score": 88.5,
+            "detector_version": "4.0.0",
+            "recency_info": {
+              "candles_ago": 0,
+              "multiplier": 1.0,
+              "lookback_window": 5,
+              "base_confidence": 0.85,
+              "adjusted_confidence": 0.85
+            },
+            "price_info": {
+              "open": 95000.0,
+              "high": 95500.0,
+              "low": 94800.0,
+              "close": 95400.0
+            }
+          }
+        },
+        {
+          "name": "Doji",
+          "type": "candlestick",
+          "direction": "reversal",
+          "base_strength": 1,
+          "adjusted_strength": 0.8,
+          "confidence": 0.75,
+          "location": "recent",
+          "candles_ago": 2,
+          "recency_multiplier": 0.8,
+          "metadata": {
+            "doji_type": "Dragonfly",
+            "quality_score": 90.0,
+            "overall_quality": 85.0,
+            "symmetry_score": 80.0,
+            "body_ratio": 0.05,
+            "body_size": 20.0,
+            "full_range": 400.0,
+            "upper_shadow": 10.5,
+            "lower_shadow": 369.5,
+            "upper_shadow_ratio": 0.026,
+            "lower_shadow_ratio": 0.924,
+            "threshold": 0.1,
+            "detector_version": "3.0.0"
+          }
+        }
+      ],
+      "chart_patterns": [],
+      "total_patterns": 2,
+      "strongest_pattern": {
+        "name": "Hammer",
+        "type": "candlestick",
+        "direction": "bullish",
+        "base_strength": 2,
+        "adjusted_strength": 3.0,
+        "confidence": 0.85,
+        "metadata": {
+          "lower_shadow_ratio": 0.639,
+          "upper_shadow_ratio": 0.08,
+          "quality_score": 88.5
+        }
+      },
+      "pattern_strength": 15.0,
+      "alignment_with_trend": "aligned",
+      "confidence": 0.85,
+      "context_aware": true
+    },
+
+    "trend": {
+      "status": "ok",
+      "direction": "bullish",
+      "strength": 8.5,
+      "current_trend": "strong_bullish",
+      "trend_score": 75.0,
+      "ema_alignment": true,
+      "adx_value": 35.0,
+      "confidence": 0.85
+    },
+
+    "momentum": {
+      "status": "ok",
+      "direction": "bullish",
+      "strength": 7.2,
+      "momentum_score": 68.0,
+      "rsi": 65.5,
+      "macd_histogram": 50.0,
+      "stochastic_k": 75.0,
+      "confidence": 0.75
+    },
+
+    "volume": {
+      "status": "ok",
+      "direction": "bullish",
+      "is_confirmed": true,
+      "relative_volume": 1.8,
+      "volume_trend": "increasing",
+      "obv_direction": "up",
+      "confidence": 0.80
+    },
+
+    "volume_patterns": {
+      "status": "ok",
+      "detected_patterns": [
+        {
+          "name": "Volume Spike",
+          "strength": 7.5,
+          "confidence": 0.75
+        }
+      ]
+    },
+
+    "support_resistance": {
+      "status": "ok",
+      "nearest_support": 94500.0,
+      "nearest_resistance": 96000.0,
+      "support_strength": 8.0,
+      "resistance_strength": 7.5,
+      "price_position": "mid_range",
+      "key_levels": [94500.0, 95000.0, 96000.0, 97000.0]
+    },
+
+    "volatility": {
+      "status": "ok",
+      "atr_value": 500.0,
+      "atr_percent": 0.0053,
+      "volatility_regime": "normal",
+      "recommended_stop_atr": 2.0,
+      "recommended_target_atr": 3.0
+    },
+
+    "harmonic": {
+      "status": "ok",
+      "detected_patterns": [],
+      "harmonic_score": 0.0
+    },
+
+    "channel": {
+      "status": "ok",
+      "in_channel": true,
+      "channel_type": "ascending",
+      "position_in_channel": "lower_half",
+      "distance_to_upper": 1000.0,
+      "distance_to_lower": 500.0
+    },
+
+    "cyclical": {
+      "status": "ok",
+      "cycle_phase": "accumulation",
+      "cycle_strength": 6.5,
+      "expected_direction": "bullish"
+    },
+
+    "htf": {
+      "status": "ok",
+      "htf_trend": "bullish",
+      "htf_momentum": "bullish",
+      "alignment": true,
+      "4h_trend": "bullish",
+      "1d_trend": "bullish"
+    }
+  },
+
+  "market_context": {
+    "current_price": 95000.0,
+    "atr": 500.0,
+    "stop_atr_multiplier": 2.0,
+    "timestamp": "2024-12-01T10:00:00",
+    "market_regime": "trending",
+    "volatility_level": "normal"
+  },
+
+  "validation_checks": {
+    "price_levels": true,
+    "risk_reward": true,
+    "trend_alignment": true,
+    "pattern_quality": true,
+    "volume_confirmation": true
+  },
+
+  "rejection_reasons": [],
+
+  "notes": "Strong bullish signal with multiple confirmations",
+  "tags": ["high_quality", "trend_following", "hammer_pattern"]
+}
