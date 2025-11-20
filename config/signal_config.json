@@ -1,0 +1,34 @@
+{
+  "orchestrator": {
+    "max_concurrent": 10,
+    "timeout_per_symbol": 30,
+    "ohlcv_limit": 500,
+    "send_to_trade_manager": true,
+    "use_multi_tf_aggregation": true,
+    "skip_validation": false
+  },
+  "signal_processing": {
+    "multi_timeframe": {
+      "weights": {
+        "5min": 0.7,
+        "15min": 0.85,
+        "1hour": 1.0,
+        "4hour": 1.2
+      },
+      "direction_margin": 1.1,
+      "min_timeframes": 2
+    },
+    "thresholds": {
+      "min_signal_score": 40,
+      "min_confidence": 0.4
+    },
+    "confidence": {
+      "enabled": true
+    }
+  },
+  "validation": {
+    "enabled": true,
+    "max_risk_percent": 2.0,
+    "min_risk_reward_ratio": 2.0
+  }
+}
