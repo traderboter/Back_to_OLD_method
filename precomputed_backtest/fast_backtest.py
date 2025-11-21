@@ -523,6 +523,23 @@ class FastBacktestEngine:
         losses = [t for t in self.closed_trades if t.pnl <= 0]
 
         total_pnl = sum(t.pnl for t in self.closed_trades)
+        gross_profit = sum(t.pnl for t in wins) if wins else 0
+        gross_loss = abs(sum(t.pnl for t in losses)) if losses else 0
+
+        # Profit Factor
+        profit_factor = gross_profit / gross_loss if gross_loss > 0 else float('inf')
+
+        # Max Drawdown
+        equity_curve = self.results.get('equity_curve', [])
+        max_drawdown = 0
+        peak = self.initial_balance
+        for point in equity_curve:
+            equity = point['equity']
+            if equity > peak:
+                peak = equity
+            drawdown = (peak - equity) / peak * 100
+            if drawdown > max_drawdown:
+                max_drawdown = drawdown
 
         self.results['statistics'] = {
             'total_trades': len(self.closed_trades),
@@ -534,6 +551,10 @@ class FastBacktestEngine:
             'current_equity': self.balance,
             'avg_win': sum(t.pnl for t in wins) / len(wins) if wins else 0,
             'avg_loss': sum(t.pnl for t in losses) / len(losses) if losses else 0,
+            'profit_factor': profit_factor,
+            'max_drawdown': max_drawdown,
+            'gross_profit': gross_profit,
+            'gross_loss': gross_loss,
         }
 
         # ذخیره معاملات
@@ -554,6 +575,61 @@ class FastBacktestEngine:
             }
             for t in self.closed_trades
         ]
+
+    def save_report(self, output_path: str = None):
+        """ذخیره گزارش بکتست"""
+        if output_path is None:
+            output_path = Path(__file__).parent / 'reports'
+            output_path.mkdir(exist_ok=True)
+            output_path = output_path / f"backtest_report_{datetime.now().strftime('%Y%m%d_%H%M%S')}.md"
+
+        stats = self.results['statistics']
+
+        report = f"""# گزارش بکتست
+تاریخ: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
+
+## خلاصه عملکرد
+
+| معیار | مقدار |
+|-------|-------|
+| سرمایه اولیه | {self.initial_balance:,.2f} USDT |
+| سرمایه نهایی | {stats['current_equity']:,.2f} USDT |
+| بازده کل | {stats['total_return']:.2f}% |
+| سود/زیان خالص | {stats['total_pnl']:,.2f} USDT |
+
+## آمار معاملات
+
+| معیار | مقدار |
+|-------|-------|
+| تعداد کل معاملات | {stats['total_trades']} |
+| معاملات برنده | {stats['winning_trades']} |
+| معاملات بازنده | {stats['losing_trades']} |
+| نرخ برد | {stats['win_rate']:.1f}% |
+| میانگین سود | {stats['avg_win']:.2f} USDT |
+| میانگین ضرر | {stats['avg_loss']:.2f} USDT |
+| Profit Factor | {stats['profit_factor']:.2f} |
+| حداکثر Drawdown | {stats['max_drawdown']:.2f}% |
+
+## توزیع معاملات
+
+- سود ناخالص: {stats['gross_profit']:,.2f} USDT
+- ضرر ناخالص: {stats['gross_loss']:,.2f} USDT
+
+## نمونه معاملات (10 معامله اول)
+
+| # | جهت | ورود | خروج | سود/زیان | دلیل |
+|---|-----|------|------|----------|------|
+"""
+        for t in self.results['trades'][:10]:
+            report += f"| {t['id']} | {t['direction']} | {t['entry_price']:.2f} | {t['exit_price']:.2f} | {t['pnl']:.2f} | {t['exit_reason']} |\n"
+
+        report += f"\n---\n*مدت اجرا: {self.results.get('duration', 'N/A')}*\n"
+
+        with open(output_path, 'w', encoding='utf-8') as f:
+            f.write(report)
+
+        logger.info(f"Report saved to: {output_path}")
+        return output_path
 
 
 def load_config(config_path: str) -> Dict:
@@ -604,10 +680,17 @@ def main():
     print("="*70)
     stats = results['statistics']
     print(f"\n  Total Trades: {stats['total_trades']}")
+    print(f"  Winning: {stats.get('winning_trades', 0)} | Losing: {stats.get('losing_trades', 0)}")
     print(f"  Win Rate: {stats['win_rate']:.1f}%")
     print(f"  Total Return: {stats['total_return']:.2f}%")
     print(f"  Final Equity: {stats['current_equity']:.2f} USDT")
+    print(f"  Profit Factor: {stats.get('profit_factor', 0):.2f}")
+    print(f"  Max Drawdown: {stats.get('max_drawdown', 0):.2f}%")
     print(f"  Duration: {results['duration']}")
+
+    # ذخیره گزارش
+    report_path = engine.save_report()
+    print(f"\n  Report saved: {report_path}")
     print()
 
 
