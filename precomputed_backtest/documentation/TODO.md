@@ -24,8 +24,8 @@
 
 ### 4. اضافه کردن اندیکاتورهای بیشتر
 - [x] Ichimoku Cloud ✓
-- [ ] Fibonacci Retracement
-- [ ] Volume Profile
+- [x] Fibonacci Retracement (7 سطح: 0%, 23.6%, 38.2%, 50%, 61.8%, 78.6%, 100%) ✓
+- [x] Volume Profile (POC, VAH, VAL) ✓
 - [x] VWAP ✓
 - [x] Pivot Points ✓
 - [x] Williams %R ✓
@@ -39,11 +39,12 @@
 - [x] Tweezer Top/Bottom ✓
 - [x] Dragonfly Doji ✓
 - [x] Gravestone Doji ✓
-- [ ] Double Top / Double Bottom (chart pattern)
-- [ ] Head and Shoulders (chart pattern)
-- [ ] Triangle patterns (chart pattern)
-- [ ] Flag patterns (chart pattern)
-- [ ] Cup and Handle (chart pattern)
+- [x] Double Top / Double Bottom (chart pattern) ✓
+- [x] Head and Shoulders / Inverse H&S (chart pattern) ✓
+- [x] Triangle patterns: Ascending, Descending, Symmetric (chart pattern) ✓
+- [x] Flag patterns: Bull Flag, Bear Flag (chart pattern) ✓
+- [x] Cup and Handle (chart pattern) ✓
+- [x] Wedge patterns: Rising, Falling (chart pattern) ✓
 
 ### 6. پشتیبانی از نمادهای بیشتر
 - [ ] ETH-USDT
@@ -97,6 +98,9 @@
 - [x] خروجی لیست معاملات به CSV
 - [x] نمودار equity curve با drawdown (matplotlib)
 - [x] نمودار خلاصه عملکرد (4 پنل)
+- [x] الگوهای چارت: Double Top/Bottom, H&S, Triangle, Flag, Cup&Handle, Wedge
+- [x] Fibonacci Retracement (7 سطح)
+- [x] Volume Profile (POC, VAH, VAL)
 
 ---
 
