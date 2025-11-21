@@ -78,21 +78,23 @@ class FastScorer:
         self.config = config or {}
 
         # تنظیمات بر اساس متد
+        # IMPORTANT: همه متدها از 13 ضریب استفاده می‌کنند (مشابه SignalScorer اصلی)
+        # تفاوت فقط در max_score و min_signal_score است
         if self.method == ScoringMethod.NEW:
-            self.max_score = 300
-            self.use_13_multipliers = False
+            self.max_score = 100  # مشابه config_scoring_new.yaml
+            self.use_13_multipliers = True  # ✅ اصلاح شد: همیشه 13 ضریب
             self.min_signal_score = 50
-            self.strong_threshold = 150
+            self.strong_threshold = 70
         elif self.method == ScoringMethod.OLD:
             self.max_score = 0  # نامحدود
             self.use_13_multipliers = True
             self.min_signal_score = 200
             self.strong_threshold = 500
         else:  # HYBRID
-            self.max_score = 300
+            self.max_score = 200  # بین NEW و OLD
             self.use_13_multipliers = True
-            self.min_signal_score = 80
-            self.strong_threshold = 180
+            self.min_signal_score = 100
+            self.strong_threshold = 300
 
         # وزن‌های NEW system برای base_score
         self.weights = {
