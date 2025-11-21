@@ -1,4 +1,4 @@
-created_at: '2025-11-21T08:21:03.259484'
+created_at: '2025-11-21T09:45:03.202641'
 indicators:
 - ema_9
 - ema_20
@@ -20,6 +20,21 @@ indicators:
 - stoch_d
 - obv
 - adx
+- ichimoku_tenkan
+- ichimoku_kijun
+- ichimoku_senkou_a
+- ichimoku_senkou_b
+- ichimoku_chikou
+- vwap
+- pivot
+- pivot_r1
+- pivot_s1
+- pivot_r2
+- pivot_s2
+- pivot_r3
+- pivot_s3
+- williams_r
+- cci
 symbols:
 - BTC-USDT
 timeframes:

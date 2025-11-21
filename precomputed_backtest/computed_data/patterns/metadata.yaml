@@ -1,4 +1,4 @@
-created_at: '2025-11-21T08:32:05.903408'
+created_at: '2025-11-21T09:48:47.050761'
 patterns:
 - doji
 - hammer
@@ -11,6 +11,14 @@ patterns:
 - harami
 - piercing_line
 - dark_cloud_cover
+- spinning_top
+- marubozu
+- inverted_hammer
+- hanging_man
+- tweezer_top
+- tweezer_bottom
+- dragonfly_doji
+- gravestone_doji
 symbols:
 - BTC-USDT
 timeframes:
