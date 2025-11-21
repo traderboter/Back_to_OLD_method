@@ -54,7 +54,7 @@ risk_management:
 backtest:
   mode: 'historical'
   data_source: 'csv'
-  data_path: '../historical/'
+  data_path: './historical/'
 
   # بازه زمانی (full data range: 2024-11-23 to 2025-10-18)
   start_date: '2024-11-23 03:00:00'
