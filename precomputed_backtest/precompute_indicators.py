@@ -184,6 +184,112 @@ class SimpleIndicatorCalculator:
         cci = (typical_price - sma) / (0.015 * mean_deviation)
         return cci
 
+    @staticmethod
+    def fibonacci_retracement(high: pd.Series, low: pd.Series, period: int = 50):
+        """
+        Fibonacci Retracement Levels
+        محاسبه سطوح فیبوناچی بر اساس swing high/low در پنجره مشخص
+        Returns: fib_0, fib_236, fib_382, fib_500, fib_618, fib_786, fib_100
+        """
+        # پیدا کردن swing high و swing low در پنجره
+        swing_high = high.rolling(window=period).max()
+        swing_low = low.rolling(window=period).min()
+
+        # محاسبه رنج
+        price_range = swing_high - swing_low
+
+        # سطوح فیبوناچی (از بالا به پایین)
+        fib_0 = swing_high  # 0%
+        fib_236 = swing_high - (price_range * 0.236)  # 23.6%
+        fib_382 = swing_high - (price_range * 0.382)  # 38.2%
+        fib_500 = swing_high - (price_range * 0.500)  # 50%
+        fib_618 = swing_high - (price_range * 0.618)  # 61.8%
+        fib_786 = swing_high - (price_range * 0.786)  # 78.6%
+        fib_100 = swing_low  # 100%
+
+        return fib_0, fib_236, fib_382, fib_500, fib_618, fib_786, fib_100
+
+    @staticmethod
+    def volume_profile(high: pd.Series, low: pd.Series, close: pd.Series,
+                       volume: pd.Series, period: int = 50, num_bins: int = 10):
+        """
+        Volume Profile
+        محاسبه پروفایل حجم و سطوح کلیدی
+        Returns: poc (Point of Control), vah (Value Area High), val (Value Area Low)
+        """
+        n = len(close)
+        poc = pd.Series(index=close.index, dtype=float)
+        vah = pd.Series(index=close.index, dtype=float)
+        val = pd.Series(index=close.index, dtype=float)
+
+        for i in range(period, n):
+            # داده‌های پنجره
+            window_high = high.iloc[i-period:i].values
+            window_low = low.iloc[i-period:i].values
+            window_close = close.iloc[i-period:i].values
+            window_volume = volume.iloc[i-period:i].values
+
+            # رنج قیمت
+            price_min = window_low.min()
+            price_max = window_high.max()
+
+            if price_max == price_min:
+                poc.iloc[i] = price_max
+                vah.iloc[i] = price_max
+                val.iloc[i] = price_min
+                continue
+
+            # تقسیم به bins
+            bin_edges = np.linspace(price_min, price_max, num_bins + 1)
+            bin_volumes = np.zeros(num_bins)
+
+            # محاسبه حجم در هر bin (بر اساس typical price)
+            for j in range(period):
+                tp = (window_high[j] + window_low[j] + window_close[j]) / 3
+                bin_idx = min(int((tp - price_min) / (price_max - price_min) * num_bins), num_bins - 1)
+                bin_volumes[bin_idx] += window_volume[j]
+
+            # POC: سطح قیمتی با بیشترین حجم
+            poc_bin = np.argmax(bin_volumes)
+            poc.iloc[i] = (bin_edges[poc_bin] + bin_edges[poc_bin + 1]) / 2
+
+            # Value Area: 70% حجم
+            total_volume = bin_volumes.sum()
+            target_volume = total_volume * 0.70
+
+            # شروع از POC و گسترش
+            included = np.zeros(num_bins, dtype=bool)
+            included[poc_bin] = True
+            current_volume = bin_volumes[poc_bin]
+
+            while current_volume < target_volume:
+                # پیدا کردن bin‌های همسایه
+                candidates = []
+                for b in range(num_bins):
+                    if not included[b]:
+                        # بررسی همسایگی
+                        if any(included[max(0, b-1):min(num_bins, b+2)]):
+                            candidates.append((b, bin_volumes[b]))
+
+                if not candidates:
+                    break
+
+                # اضافه کردن bin با بیشترین حجم
+                best_bin = max(candidates, key=lambda x: x[1])[0]
+                included[best_bin] = True
+                current_volume += bin_volumes[best_bin]
+
+            # VAH و VAL
+            included_bins = np.where(included)[0]
+            if len(included_bins) > 0:
+                vah.iloc[i] = bin_edges[included_bins.max() + 1]
+                val.iloc[i] = bin_edges[included_bins.min()]
+            else:
+                vah.iloc[i] = poc.iloc[i]
+                val.iloc[i] = poc.iloc[i]
+
+        return poc, vah, val
+
 
 class SimpleCSVLoader:
     """لودر ساده CSV"""
@@ -347,6 +453,27 @@ class IndicatorPrecomputer:
             result['high'], result['low'], result['close'], 20
         )
 
+        # Fibonacci Retracement
+        fib_0, fib_236, fib_382, fib_500, fib_618, fib_786, fib_100 = self.calculator.fibonacci_retracement(
+            result['high'], result['low'], 50
+        )
+        result['fib_0'] = fib_0
+        result['fib_236'] = fib_236
+        result['fib_382'] = fib_382
+        result['fib_500'] = fib_500
+        result['fib_618'] = fib_618
+        result['fib_786'] = fib_786
+        result['fib_100'] = fib_100
+
+        # Volume Profile
+        if 'volume' in result.columns:
+            poc, vah, val = self.calculator.volume_profile(
+                result['high'], result['low'], result['close'], result['volume'], 50, 10
+            )
+            result['vp_poc'] = poc
+            result['vp_vah'] = vah
+            result['vp_val'] = val
+
         return result
 
     def precompute_all(self) -> Dict[str, Dict[str, pd.DataFrame]]:
@@ -415,7 +542,9 @@ class IndicatorPrecomputer:
                 'ichimoku_senkou_b', 'ichimoku_chikou',
                 'vwap', 'pivot', 'pivot_r1', 'pivot_s1', 'pivot_r2',
                 'pivot_s2', 'pivot_r3', 'pivot_s3',
-                'williams_r', 'cci'
+                'williams_r', 'cci',
+                'fib_0', 'fib_236', 'fib_382', 'fib_500', 'fib_618', 'fib_786', 'fib_100',
+                'vp_poc', 'vp_vah', 'vp_val'
             ]
         }
 

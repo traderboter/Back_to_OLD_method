@@ -24,8 +24,8 @@
 
 ### 4. اضافه کردن اندیکاتورهای بیشتر
 - [x] Ichimoku Cloud ✓
-- [ ] Fibonacci Retracement
-- [ ] Volume Profile
+- [x] Fibonacci Retracement (7 سطح: 0%, 23.6%, 38.2%, 50%, 61.8%, 78.6%, 100%) ✓
+- [x] Volume Profile (POC, VAH, VAL) ✓
 - [x] VWAP ✓
 - [x] Pivot Points ✓
 - [x] Williams %R ✓
@@ -99,6 +99,8 @@
 - [x] نمودار equity curve با drawdown (matplotlib)
 - [x] نمودار خلاصه عملکرد (4 پنل)
 - [x] الگوهای چارت: Double Top/Bottom, H&S, Triangle, Flag, Cup&Handle, Wedge
+- [x] Fibonacci Retracement (7 سطح)
+- [x] Volume Profile (POC, VAH, VAL)
 
 ---
 
