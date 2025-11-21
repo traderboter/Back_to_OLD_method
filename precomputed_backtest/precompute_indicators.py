@@ -1,18 +1,10 @@
 """
-Pre-compute Indicators - محاسبه و ذخیره اندیکاتورها برای همه تایم‌فریم‌ها
+Pre-compute Indicators - محاسبه و ذخیره اندیکاتورها (نسخه مستقل)
 
-این اسکریپت یک بار روی همه داده‌های تاریخی اجرا می‌شود و:
-1. همه اندیکاتورها را محاسبه می‌کند (RSI, MACD, ATR, ...)
-2. نتایج را در فایل‌های parquet ذخیره می‌کند
-3. بعداً بکتست می‌تواند از این فایل‌ها استفاده کند (بدون محاسبه مجدد)
-
-Usage:
-    python precompute_indicators.py --symbol BTCUSDT --config config.yaml
+این اسکریپت بدون وابستگی به سیستم اصلی، اندیکاتورها را محاسبه می‌کند.
 """
 
 import sys
-import os
-import asyncio
 import logging
 from pathlib import Path
 from datetime import datetime
@@ -22,13 +14,6 @@ import numpy as np
 import yaml
 import argparse
 
-# Add parent directory to path for imports
-sys.path.insert(0, str(Path(__file__).parent.parent))
-
-from backtest.csv_data_loader import CSVDataLoader
-from signal_generation.shared.indicator_calculator import IndicatorCalculator
-from signal_generation.context import AnalysisContext
-
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
@@ -36,220 +21,339 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
-class IndicatorPrecomputer:
-    """
-    کلاس محاسبه و ذخیره اندیکاتورها
-    """
+class SimpleIndicatorCalculator:
+    """محاسبه‌گر ساده اندیکاتورها (بدون وابستگی به talib)"""
 
-    def __init__(self, config: Dict[str, Any]):
-        """
-        Args:
-            config: تنظیمات از config.yaml
-        """
+    @staticmethod
+    def ema(series: pd.Series, period: int) -> pd.Series:
+        """Exponential Moving Average"""
+        return series.ewm(span=period, adjust=False).mean()
+
+    @staticmethod
+    def sma(series: pd.Series, period: int) -> pd.Series:
+        """Simple Moving Average"""
+        return series.rolling(window=period).mean()
+
+    @staticmethod
+    def rsi(series: pd.Series, period: int = 14) -> pd.Series:
+        """Relative Strength Index"""
+        delta = series.diff()
+        gain = (delta.where(delta > 0, 0)).rolling(window=period).mean()
+        loss = (-delta.where(delta < 0, 0)).rolling(window=period).mean()
+        rs = gain / loss
+        return 100 - (100 / (1 + rs))
+
+    @staticmethod
+    def macd(series: pd.Series, fast: int = 12, slow: int = 26, signal: int = 9):
+        """MACD"""
+        ema_fast = series.ewm(span=fast, adjust=False).mean()
+        ema_slow = series.ewm(span=slow, adjust=False).mean()
+        macd_line = ema_fast - ema_slow
+        signal_line = macd_line.ewm(span=signal, adjust=False).mean()
+        histogram = macd_line - signal_line
+        return macd_line, signal_line, histogram
+
+    @staticmethod
+    def atr(high: pd.Series, low: pd.Series, close: pd.Series, period: int = 14) -> pd.Series:
+        """Average True Range"""
+        tr1 = high - low
+        tr2 = abs(high - close.shift())
+        tr3 = abs(low - close.shift())
+        tr = pd.concat([tr1, tr2, tr3], axis=1).max(axis=1)
+        return tr.rolling(window=period).mean()
+
+    @staticmethod
+    def bollinger_bands(series: pd.Series, period: int = 20, std_dev: float = 2.0):
+        """Bollinger Bands"""
+        sma = series.rolling(window=period).mean()
+        std = series.rolling(window=period).std()
+        upper = sma + (std * std_dev)
+        lower = sma - (std * std_dev)
+        return upper, sma, lower
+
+    @staticmethod
+    def stochastic(high: pd.Series, low: pd.Series, close: pd.Series, k_period: int = 14, d_period: int = 3):
+        """Stochastic Oscillator"""
+        lowest_low = low.rolling(window=k_period).min()
+        highest_high = high.rolling(window=k_period).max()
+        k = 100 * (close - lowest_low) / (highest_high - lowest_low)
+        d = k.rolling(window=d_period).mean()
+        return k, d
+
+    @staticmethod
+    def obv(close: pd.Series, volume: pd.Series) -> pd.Series:
+        """On-Balance Volume"""
+        direction = np.sign(close.diff())
+        direction.iloc[0] = 0
+        return (volume * direction).cumsum()
+
+    @staticmethod
+    def adx(high: pd.Series, low: pd.Series, close: pd.Series, period: int = 14) -> pd.Series:
+        """Average Directional Index (simplified)"""
+        plus_dm = high.diff()
+        minus_dm = -low.diff()
+        plus_dm[plus_dm < 0] = 0
+        minus_dm[minus_dm < 0] = 0
+
+        tr = pd.concat([
+            high - low,
+            abs(high - close.shift()),
+            abs(low - close.shift())
+        ], axis=1).max(axis=1)
+
+        atr = tr.rolling(window=period).mean()
+        plus_di = 100 * (plus_dm.rolling(window=period).mean() / atr)
+        minus_di = 100 * (minus_dm.rolling(window=period).mean() / atr)
+
+        dx = 100 * abs(plus_di - minus_di) / (plus_di + minus_di)
+        adx = dx.rolling(window=period).mean()
+        return adx
+
+
+class SimpleCSVLoader:
+    """لودر ساده CSV"""
+
+    def __init__(self, config: Dict):
         self.config = config
         self.backtest_config = config.get('backtest', {})
 
-        # مسیر ذخیره فایل‌های precomputed
+        # مسیر داده‌ها (از backtest config)
+        data_path = self.backtest_config.get('data_path', './historical/')
+        self.data_path = Path(__file__).parent.parent / data_path
+
+        logger.info(f"  Data path: {self.data_path}")
+
+        # نگاشت تایم‌فریم به فایل
+        csv_config = self.backtest_config.get('csv_format', {})
+        self.timeframe_files = csv_config.get('timeframe_files', {
+            '5m': '5min.csv',
+            '15m': '15min.csv',
+            '1h': '1hour.csv',
+            '4h': '4hour.csv'
+        })
+
+    def load(self, symbol: str, timeframe: str) -> Optional[pd.DataFrame]:
+        """لود داده‌های یک سیمبل/تایم‌فریم"""
+        filename = self.timeframe_files.get(timeframe)
+        if not filename:
+            logger.error(f"Unknown timeframe: {timeframe}")
+            return None
+
+        filepath = self.data_path / symbol / filename
+        if not filepath.exists():
+            logger.error(f"File not found: {filepath}")
+            return None
+
+        try:
+            df = pd.read_csv(filepath)
+
+            # تبدیل timestamp به index
+            if 'timestamp' in df.columns:
+                df['timestamp'] = pd.to_datetime(df['timestamp'])
+                df.set_index('timestamp', inplace=True)
+
+            # حذف ستون‌های اضافی
+            if 'timestamp_unix' in df.columns:
+                df.drop('timestamp_unix', axis=1, inplace=True)
+
+            return df
+
+        except Exception as e:
+            logger.error(f"Error loading {filepath}: {e}")
+            return None
+
+
+class IndicatorPrecomputer:
+    """محاسبه و ذخیره اندیکاتورها"""
+
+    def __init__(self, config: Dict[str, Any]):
+        self.config = config
+        self.backtest_config = config.get('backtest', {})
+
+        # مسیر خروجی
         self.output_dir = Path(__file__).parent / 'computed_data' / 'indicators'
         self.output_dir.mkdir(parents=True, exist_ok=True)
 
-        # تایم‌فریم‌ها
+        # تایم‌فریم‌ها و سیمبل‌ها
         self.timeframes = config.get('data_fetching', {}).get('timeframes', ['5m', '15m', '1h', '4h'])
 
-        # سیمبل‌ها
-        self.symbols = self.backtest_config.get('symbols', ['BTCUSDT'])
+        # سیمبل‌ها از چند جا ممکنه باشن
+        self.symbols = (
+            self.backtest_config.get('symbols') or
+            config.get('signal_processing', {}).get('symbols') or
+            ['BTC-USDT']
+        )
 
-        # لودر داده‌ها
-        self.data_loader = CSVDataLoader(config)
-
-        # محاسبه‌گر اندیکاتورها
-        self.indicator_calculator = IndicatorCalculator(config)
+        # لودر و محاسبه‌گر
+        self.data_loader = SimpleCSVLoader(config)
+        self.calculator = SimpleIndicatorCalculator()
 
         logger.info(f"IndicatorPrecomputer initialized")
         logger.info(f"  Symbols: {self.symbols}")
         logger.info(f"  Timeframes: {self.timeframes}")
-        logger.info(f"  Output dir: {self.output_dir}")
+
+    def calculate_indicators(self, df: pd.DataFrame) -> pd.DataFrame:
+        """محاسبه همه اندیکاتورها روی DataFrame"""
+        result = df.copy()
+
+        # EMAs
+        for period in [9, 20, 50, 100, 200]:
+            result[f'ema_{period}'] = self.calculator.ema(result['close'], period)
+
+        # SMAs
+        for period in [20, 50, 200]:
+            result[f'sma_{period}'] = self.calculator.sma(result['close'], period)
+
+        # RSI
+        result['rsi'] = self.calculator.rsi(result['close'], 14)
+
+        # MACD
+        macd, signal, hist = self.calculator.macd(result['close'])
+        result['macd'] = macd
+        result['macd_signal'] = signal
+        result['macd_hist'] = hist
+
+        # ATR
+        result['atr'] = self.calculator.atr(result['high'], result['low'], result['close'], 14)
+
+        # Bollinger Bands
+        bb_upper, bb_mid, bb_lower = self.calculator.bollinger_bands(result['close'], 20, 2)
+        result['bb_upper'] = bb_upper
+        result['bb_mid'] = bb_mid
+        result['bb_lower'] = bb_lower
+
+        # Stochastic
+        stoch_k, stoch_d = self.calculator.stochastic(result['high'], result['low'], result['close'])
+        result['stoch_k'] = stoch_k
+        result['stoch_d'] = stoch_d
+
+        # OBV
+        if 'volume' in result.columns:
+            result['obv'] = self.calculator.obv(result['close'], result['volume'])
+
+        # ADX
+        result['adx'] = self.calculator.adx(result['high'], result['low'], result['close'], 14)
+
+        return result
 
     def precompute_all(self) -> Dict[str, Dict[str, pd.DataFrame]]:
-        """
-        محاسبه اندیکاتورها برای همه سیمبل‌ها و تایم‌فریم‌ها
-
-        Returns:
-            Dict[symbol][timeframe] = DataFrame with indicators
-        """
+        """محاسبه برای همه سیمبل‌ها و تایم‌فریم‌ها"""
         results = {}
 
         for symbol in self.symbols:
             logger.info(f"\n{'='*60}")
-            logger.info(f"Processing symbol: {symbol}")
+            logger.info(f"Processing: {symbol}")
             logger.info(f"{'='*60}")
 
             results[symbol] = {}
 
             for tf in self.timeframes:
-                logger.info(f"\n  Processing timeframe: {tf}")
+                logger.info(f"\n  Timeframe: {tf}")
 
-                try:
-                    # 1. لود داده‌های CSV
-                    df = self.data_loader.load_symbol_timeframe(symbol, tf)
+                # لود داده
+                df = self.data_loader.load(symbol, tf)
+                if df is None or df.empty:
+                    logger.warning(f"    No data for {symbol}/{tf}")
+                    continue
 
-                    if df is None or df.empty:
-                        logger.warning(f"    No data for {symbol}/{tf}")
-                        continue
+                logger.info(f"    Loaded {len(df)} candles")
+                logger.info(f"    Range: {df.index[0]} to {df.index[-1]}")
 
-                    logger.info(f"    Loaded {len(df)} candles")
-                    logger.info(f"    Date range: {df.index[0]} to {df.index[-1]}")
+                # محاسبه اندیکاتورها
+                df_with_indicators = self.calculate_indicators(df)
 
-                    # 2. ساخت Context برای محاسبه اندیکاتورها
-                    context = AnalysisContext(
-                        symbol=symbol,
-                        timeframe=tf,
-                        df=df.copy(),
-                        config=self.config
-                    )
+                # ذخیره
+                results[symbol][tf] = df_with_indicators
 
-                    # 3. محاسبه همه اندیکاتورها
-                    self.indicator_calculator.calculate_all(context)
-
-                    # 4. ذخیره نتیجه
-                    results[symbol][tf] = context.df
-
-                    # نمایش ستون‌های اضافه شده
-                    original_cols = set(df.columns)
-                    new_cols = set(context.df.columns) - original_cols
-                    logger.info(f"    Added {len(new_cols)} indicator columns")
-                    logger.debug(f"    New columns: {sorted(new_cols)}")
-
-                except Exception as e:
-                    logger.error(f"    Error processing {symbol}/{tf}: {e}", exc_info=True)
+                # آمار
+                indicator_cols = [c for c in df_with_indicators.columns if c not in df.columns]
+                logger.info(f"    Added {len(indicator_cols)} indicators")
 
         return results
 
-    def save_results(self, results: Dict[str, Dict[str, pd.DataFrame]], format: str = 'parquet'):
-        """
-        ذخیره نتایج در فایل
-
-        Args:
-            results: نتایج از precompute_all
-            format: فرمت ذخیره‌سازی ('parquet', 'pickle', 'csv')
-        """
-        for symbol, timeframes_data in results.items():
+    def save_results(self, results: Dict, format: str = 'parquet'):
+        """ذخیره نتایج"""
+        for symbol, tf_data in results.items():
             symbol_dir = self.output_dir / symbol
             symbol_dir.mkdir(parents=True, exist_ok=True)
 
-            for tf, df in timeframes_data.items():
+            for tf, df in tf_data.items():
                 if format == 'parquet':
                     filepath = symbol_dir / f"{tf}_indicators.parquet"
                     df.to_parquet(filepath)
-                elif format == 'pickle':
-                    filepath = symbol_dir / f"{tf}_indicators.pkl"
-                    df.to_pickle(filepath)
-                elif format == 'csv':
+                else:
                     filepath = symbol_dir / f"{tf}_indicators.csv"
                     df.to_csv(filepath)
-                else:
-                    raise ValueError(f"Unknown format: {format}")
 
-                logger.info(f"  Saved: {filepath} ({len(df)} rows, {len(df.columns)} cols)")
+                logger.info(f"  Saved: {filepath}")
 
-        # ذخیره metadata
+        # Metadata
         metadata = {
             'created_at': datetime.now().isoformat(),
             'symbols': list(results.keys()),
             'timeframes': self.timeframes,
-            'format': format,
-            'files': {}
+            'indicators': [
+                'ema_9', 'ema_20', 'ema_50', 'ema_100', 'ema_200',
+                'sma_20', 'sma_50', 'sma_200',
+                'rsi', 'macd', 'macd_signal', 'macd_hist',
+                'atr', 'bb_upper', 'bb_mid', 'bb_lower',
+                'stoch_k', 'stoch_d', 'obv', 'adx'
+            ]
         }
 
-        for symbol in results:
-            metadata['files'][symbol] = {}
-            for tf in results[symbol]:
-                df = results[symbol][tf]
-                metadata['files'][symbol][tf] = {
-                    'rows': len(df),
-                    'columns': list(df.columns),
-                    'date_start': str(df.index[0]) if len(df) > 0 else None,
-                    'date_end': str(df.index[-1]) if len(df) > 0 else None
-                }
-
-        metadata_path = self.output_dir / 'metadata.yaml'
-        with open(metadata_path, 'w') as f:
-            yaml.dump(metadata, f, default_flow_style=False, allow_unicode=True)
-
-        logger.info(f"\nMetadata saved to: {metadata_path}")
-
-    def load_precomputed(self, symbol: str, timeframe: str) -> Optional[pd.DataFrame]:
-        """
-        لود کردن داده‌های از پیش محاسبه شده
-
-        Args:
-            symbol: نماد
-            timeframe: تایم‌فریم
-
-        Returns:
-            DataFrame با اندیکاتورها یا None
-        """
-        # امتحان فرمت‌های مختلف
-        for ext in ['parquet', 'pkl', 'csv']:
-            filepath = self.output_dir / symbol / f"{timeframe}_indicators.{ext}"
-            if filepath.exists():
-                if ext == 'parquet':
-                    return pd.read_parquet(filepath)
-                elif ext == 'pkl':
-                    return pd.read_pickle(filepath)
-                elif ext == 'csv':
-                    return pd.read_csv(filepath, index_col=0, parse_dates=True)
-
-        return None
+        with open(self.output_dir / 'metadata.yaml', 'w') as f:
+            yaml.dump(metadata, f)
 
 
 def load_config(config_path: str) -> Dict:
-    """لود تنظیمات از فایل YAML"""
     with open(config_path, 'r') as f:
         return yaml.safe_load(f)
 
 
+def merge_configs(base_config: Dict, override_config: Dict) -> Dict:
+    """ترکیب دو config (override روی base)"""
+    result = base_config.copy()
+    for key, value in override_config.items():
+        if key in result and isinstance(result[key], dict) and isinstance(value, dict):
+            result[key] = merge_configs(result[key], value)
+        else:
+            result[key] = value
+    return result
+
+
 def main():
-    parser = argparse.ArgumentParser(description='Pre-compute indicators for backtest')
-    parser.add_argument('--config', type=str, default='config.yaml', help='Path to config file')
-    parser.add_argument('--format', type=str, default='parquet', choices=['parquet', 'pickle', 'csv'],
-                       help='Output format')
+    parser = argparse.ArgumentParser(description='Pre-compute indicators')
+    parser.add_argument('--config', type=str, default='config.yaml')
+    parser.add_argument('--format', type=str, default='parquet', choices=['parquet', 'csv'])
     args = parser.parse_args()
 
     print("\n" + "="*70)
     print("  INDICATOR PRE-COMPUTATION")
     print("="*70 + "\n")
 
-    # لود تنظیمات
+    # لود config اصلی
     config_path = Path(__file__).parent.parent / args.config
     if not config_path.exists():
         config_path = Path(__file__).parent / 'configs' / 'config.yaml'
 
-    logger.info(f"Loading config from: {config_path}")
+    logger.info(f"Loading main config: {config_path}")
     config = load_config(config_path)
 
-    # ساخت precomputer و اجرا
+    # لود backtest config و merge
+    backtest_config_path = Path(__file__).parent.parent / 'backtest' / 'config_backtest_v2.yaml'
+    if backtest_config_path.exists():
+        logger.info(f"Loading backtest config: {backtest_config_path}")
+        backtest_config = load_config(backtest_config_path)
+        config = merge_configs(config, backtest_config)
+
+    # اجرا
     precomputer = IndicatorPrecomputer(config)
-
-    # محاسبه اندیکاتورها
     results = precomputer.precompute_all()
-
-    # ذخیره نتایج
     precomputer.save_results(results, format=args.format)
 
     print("\n" + "="*70)
-    print("  PRE-COMPUTATION COMPLETED!")
-    print("="*70)
-
-    # خلاصه
-    total_rows = sum(
-        len(df)
-        for symbol_data in results.values()
-        for df in symbol_data.values()
-    )
-    print(f"\n  Total candles processed: {total_rows:,}")
-    print(f"  Output directory: {precomputer.output_dir}")
-    print()
+    print("  COMPLETED!")
+    print("="*70 + "\n")
 
 
 if __name__ == '__main__':

@@ -139,8 +139,12 @@ class FastBacktestEngine:
         self.data_dir = Path(__file__).parent / 'computed_data'
         self.data_loader = PrecomputedDataLoader(self.data_dir)
 
-        # تنظیمات
-        self.symbols = self.backtest_config.get('symbols', ['BTCUSDT'])
+        # تنظیمات - سیمبل‌ها از چند جا
+        self.symbols = (
+            self.backtest_config.get('symbols') or
+            config.get('signal_processing', {}).get('symbols') or
+            ['BTC-USDT']
+        )
         self.initial_balance = self.backtest_config.get('initial_balance', 10000.0)
         self.step_timeframe = self.backtest_config.get('step_timeframe', '5m')
         self.signal_timeframe = config.get('signal_processing', {}).get('primary_timeframe', '1h')
@@ -499,6 +503,17 @@ def load_config(config_path: str) -> Dict:
         return yaml.safe_load(f)
 
 
+def merge_configs(base_config: Dict, override_config: Dict) -> Dict:
+    """ترکیب دو config"""
+    result = base_config.copy()
+    for key, value in override_config.items():
+        if key in result and isinstance(result[key], dict) and isinstance(value, dict):
+            result[key] = merge_configs(result[key], value)
+        else:
+            result[key] = value
+    return result
+
+
 def main():
     parser = argparse.ArgumentParser(description='Fast Backtest using pre-computed data')
     parser.add_argument('--config', type=str, default='config.yaml', help='Path to config file')
@@ -515,6 +530,12 @@ def main():
         config_path = Path(__file__).parent / 'configs' / 'config.yaml'
 
     config = load_config(config_path)
+
+    # لود و merge backtest config
+    backtest_config_path = Path(__file__).parent.parent / 'backtest' / 'config_backtest_v2.yaml'
+    if backtest_config_path.exists():
+        backtest_config = load_config(backtest_config_path)
+        config = merge_configs(config, backtest_config)
 
     # اجرای بکتست
     engine = FastBacktestEngine(config)
