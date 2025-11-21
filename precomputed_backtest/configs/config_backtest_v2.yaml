@@ -1,0 +1,161 @@
+# ================= Backtest Minimal Config =================
+# این فایل فقط شامل تنظیمات خاص Backtest است
+# بقیه تنظیمات از config.yaml اصلی لود می‌شوند
+#
+# 🆕 نحوه کار:
+# 1. config.yaml اصلی لود می‌شود (patterns, analyzers, etc)
+# 2. این فایل override/merge می‌شود روی config اصلی
+# 3. تنظیمات این فایل اولویت دارند
+# ========================================================
+
+# ================= Override: Exchange (Backtest Mode) =================
+exchange:
+  api_key: 'BACKTEST_MODE'
+  api_secret: 'BACKTEST_MODE'
+  websocket:
+    enabled: False
+
+# ================= Override: Data Fetching (CSV Mode) =================
+data_fetching:
+  primary_api: 'csv'
+  auto_symbols: False
+  timeframes: ['5m', '15m', '1h', '4h']  # 4 تایم‌فریم
+  delta_updates:
+    enabled: False
+  cache:
+    use_redis: False
+    use_memory_cache: True
+
+# ================= Override: Signal Generation =================
+signal_generation:
+  minimum_signal_score: 5  # کاهش به 5 (Multi-TF aggregate scores are 7-16)
+  use_adaptive_learning: False  # در backtest غیرفعال
+  adaptive_learning:
+    enabled: False
+    register_results: False
+
+# ================= Override: Signal Validation (deleted - merged below) =================
+# Moved to line 114 to avoid duplicate key
+
+# ================= Override: Trading Mode =================
+trading:
+  mode: 'backtest'
+  multi_tp:
+    enabled: False
+
+# ================= Override: Risk Management (Backtest Settings) =================
+risk_management:
+  account_balance: 10000.0
+  use_correlation_check: False
+  btc_correlation:
+    consider_btc_trend: False
+
+# ================= Backtest Specific Settings =================
+backtest:
+  mode: 'historical'
+  data_source: 'csv'
+  data_path: './historical/'
+
+  # بازه زمانی (full data range: 2024-11-23 to 2025-10-18)
+  start_date: '2024-11-23 03:00:00'
+  end_date: '2025-10-18 07:00:00'
+  
+  # موجودی اولیه
+  initial_balance: 10000.0
+  
+  # نمادها
+  symbols:
+    - 'BTC-USDT'
+  
+  # فرمت CSV
+  csv_format:
+    folder_structure: '{symbol}/'
+    timeframe_files:
+      '5m': '5min.csv'
+      '15m': '15min.csv'
+      '1h': '1hour.csv'
+      '4h': '4hour.csv'
+    separator: ','
+    encoding: 'utf-8'
+    columns:
+      timestamp: 'timestamp'
+      open: 'open'
+      high: 'high'
+      low: 'low'
+      close: 'close'
+      volume: 'volume'
+    date_format: '%Y-%m-%d %H:%M:%S'
+    validate_data: True
+    fill_missing_data: True
+  
+  # تنظیمات شبیه‌سازی (15m for faster testing)
+  step_timeframe: '15m'
+  process_interval: 60  # Process signal every 60 steps (15 hours)
+  
+  # کمیسیون و اسلیپیج
+  commission_rate: 0.0006
+  slippage: 0.0005
+  
+  # گزارش‌دهی
+  generate_report: True
+  save_trades_to_csv: True
+  create_equity_curve: True
+  results_dir: 'backtest_results'
+  use_progress_bar: True
+
+# ================= Override: Orchestrator =================
+orchestrator:
+  send_to_trade_manager: False  # در backtest نیاز نیست
+
+# ================= Override: Signal Processing =================
+signal_processing:
+  symbols: ['BTC-USDT']
+  primary_timeframe: '1h'
+  notification:
+    enabled: False
+
+  # Validation thresholds (optimized based on 30k perfect trades analysis)
+  validation:
+    min_signal_score: 10  # کاهش از 50 → 30 → 10 (observed scores: 14-48)
+    min_rr_ratio: 0.6  # کاهش از 1.8 → 1.0 → 0.6 (TP from S/R often very close)
+    max_risk_percent: 5.0  # افزایش از 2.0 به 5.0 برای backtest
+    circuit_breaker:
+      enabled: false  # غیرفعال برای backtest
+
+  multi_timeframe:
+    direction_margin: 1.0  # کاهش از 1.1 - هیچ margin نمیخواهیم (فقط bullish > bearish کافیست)
+
+# ================= Override: Timeframe Score Cache =================
+timeframe_score_cache:
+  enabled: False  # در backtest برای دقت False
+
+# ================= Override: Logging =================
+logging:
+  level: 'INFO'
+  file: 'logs/backtest_btc.log'
+
+# ================= Override: Notifications (Disabled) =================
+notification:
+  enabled: False
+
+# ================= Override: AI Systems (Disabled) =================
+trading_brain_ai:
+  enabled: False
+
+ml_signal_integration:
+  enabled: False
+
+# ================= Override: Advanced Systems (Disabled for Backtest) =================
+systems:
+  adaptive_learning:
+    enabled: False
+    register_results: False
+
+  correlation_manager:
+    enabled: False
+
+  circuit_breaker:
+    enabled: False
+
+  regime_detector:
+    enabled: True  # می‌تواند فعال باشد - فقط تشخیص می‌دهد
