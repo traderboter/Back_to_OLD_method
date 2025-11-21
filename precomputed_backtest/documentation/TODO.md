@@ -86,6 +86,8 @@
 - [x] گزارش Markdown با آمار کامل (Profit Factor: 1.52، Max Drawdown: 1.01%)
 - [x] خروجی equity curve به CSV
 - [x] خروجی لیست معاملات به CSV
+- [x] نمودار equity curve با drawdown (matplotlib)
+- [x] نمودار خلاصه عملکرد (4 پنل)
 
 ---
 
