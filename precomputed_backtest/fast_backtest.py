@@ -631,6 +631,73 @@ class FastBacktestEngine:
         logger.info(f"Report saved to: {output_path}")
         return output_path
 
+    def save_equity_curve(self, output_dir: str = None):
+        """ذخیره نمودار equity curve"""
+        if output_dir is None:
+            output_dir = Path(__file__).parent / 'reports'
+            output_dir.mkdir(exist_ok=True)
+
+        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+
+        # ذخیره به CSV
+        equity_data = self.results.get('equity_curve', [])
+        if not equity_data:
+            logger.warning("No equity curve data available")
+            return None
+
+        csv_path = output_dir / f"equity_curve_{timestamp}.csv"
+        with open(csv_path, 'w') as f:
+            f.write("time,equity\n")
+            for point in equity_data:
+                f.write(f"{point['time']},{point['equity']:.2f}\n")
+
+        logger.info(f"Equity curve saved to: {csv_path}")
+
+        # تلاش برای رسم نمودار
+        try:
+            import matplotlib.pyplot as plt
+
+            times = [p['time'] for p in equity_data]
+            equities = [p['equity'] for p in equity_data]
+
+            plt.figure(figsize=(12, 6))
+            plt.plot(equities, 'b-', linewidth=1)
+            plt.axhline(y=self.initial_balance, color='r', linestyle='--', alpha=0.5, label='Initial Balance')
+            plt.title('Equity Curve')
+            plt.xlabel('Time')
+            plt.ylabel('Equity (USDT)')
+            plt.legend()
+            plt.grid(True, alpha=0.3)
+
+            chart_path = output_dir / f"equity_curve_{timestamp}.png"
+            plt.savefig(chart_path, dpi=150, bbox_inches='tight')
+            plt.close()
+
+            logger.info(f"Equity chart saved to: {chart_path}")
+            return chart_path
+
+        except ImportError:
+            logger.info("matplotlib not available, skipping chart generation")
+            return csv_path
+
+    def export_trades_csv(self, output_dir: str = None):
+        """صادر کردن معاملات به CSV"""
+        if output_dir is None:
+            output_dir = Path(__file__).parent / 'reports'
+            output_dir.mkdir(exist_ok=True)
+
+        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+        csv_path = output_dir / f"trades_{timestamp}.csv"
+
+        with open(csv_path, 'w') as f:
+            f.write("id,symbol,direction,entry_time,entry_price,exit_time,exit_price,pnl,pnl_percent,exit_reason,patterns\n")
+            for t in self.results.get('trades', []):
+                patterns = '|'.join(t.get('patterns_found', []) or [])
+                f.write(f"{t['id']},{t['symbol']},{t['direction']},{t['entry_time']},{t['entry_price']:.2f},{t['exit_time']},{t['exit_price']:.2f},{t['pnl']:.2f},{t.get('pnl_percent', 0):.2f},{t['exit_reason']},{patterns}\n")
+
+        logger.info(f"Trades exported to: {csv_path}")
+        return csv_path
+
 
 def load_config(config_path: str) -> Dict:
     """لود تنظیمات"""
@@ -688,9 +755,17 @@ def main():
     print(f"  Max Drawdown: {stats.get('max_drawdown', 0):.2f}%")
     print(f"  Duration: {results['duration']}")
 
-    # ذخیره گزارش
+    # ذخیره گزارش‌ها
+    print("\n  Saving reports...")
     report_path = engine.save_report()
-    print(f"\n  Report saved: {report_path}")
+    print(f"  - Report: {report_path}")
+
+    equity_path = engine.save_equity_curve()
+    if equity_path:
+        print(f"  - Equity curve: {equity_path}")
+
+    trades_path = engine.export_trades_csv()
+    print(f"  - Trades CSV: {trades_path}")
     print()
 
 
