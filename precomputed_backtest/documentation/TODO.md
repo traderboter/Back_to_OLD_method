@@ -43,8 +43,10 @@
 
 ### 7. گزارش‌دهی
 - [ ] تولید گزارش PDF
-- [ ] نمودار equity curve
-- [ ] آمار معاملات (win rate, profit factor, ...)
+- [x] نمودار equity curve (CSV export) ✓
+- [x] آمار معاملات (win rate, profit factor, max drawdown) ✓
+- [x] گزارش Markdown ✓
+- [x] خروجی CSV معاملات ✓
 
 ---
 
@@ -81,6 +83,9 @@
 - [x] تولید معاملات (1453 معامله، 51% win rate)
 - [x] سرعت ~8000 کندل/ثانیه
 - [x] اصلاح position sizing (نتیجه واقعی: 27% بازده)
+- [x] گزارش Markdown با آمار کامل (Profit Factor: 1.52، Max Drawdown: 1.01%)
+- [x] خروجی equity curve به CSV
+- [x] خروجی لیست معاملات به CSV
 
 ---
 
