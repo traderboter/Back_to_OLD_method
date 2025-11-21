@@ -32,11 +32,18 @@
 - [x] CCI (Commodity Channel Index) ✓
 
 ### 5. اضافه کردن الگوهای بیشتر
-- [ ] Double Top / Double Bottom
-- [ ] Head and Shoulders
-- [ ] Triangle patterns
-- [ ] Flag patterns
-- [ ] Cup and Handle
+- [x] Spinning Top ✓
+- [x] Marubozu ✓
+- [x] Inverted Hammer ✓
+- [x] Hanging Man ✓
+- [x] Tweezer Top/Bottom ✓
+- [x] Dragonfly Doji ✓
+- [x] Gravestone Doji ✓
+- [ ] Double Top / Double Bottom (chart pattern)
+- [ ] Head and Shoulders (chart pattern)
+- [ ] Triangle patterns (chart pattern)
+- [ ] Flag patterns (chart pattern)
+- [ ] Cup and Handle (chart pattern)
 
 ### 6. پشتیبانی از نمادهای بیشتر
 - [ ] ETH-USDT
