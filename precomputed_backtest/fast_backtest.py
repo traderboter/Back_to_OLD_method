@@ -68,6 +68,11 @@ class Trade:
     signal_reason: str = ""
     strategies_triggered: List[str] = None
 
+    # Trailing Stop
+    highest_price: float = 0.0  # برای LONG
+    lowest_price: float = float('inf')  # برای SHORT
+    trailing_sl_price: Optional[float] = None
+
 
 class PrecomputedDataLoader:
     """لودر داده‌های از پیش محاسبه شده"""
@@ -161,6 +166,11 @@ class FastBacktestEngine:
         # تنظیمات واقعی‌تر
         self.commission_rate = self.backtest_config.get('commission_rate', 0.001)  # 0.1% کمیسیون
         self.slippage_rate = self.backtest_config.get('slippage_rate', 0.0005)  # 0.05% slippage
+
+        # Trailing Stop تنظیمات
+        self.trailing_stop_enabled = self.backtest_config.get('trailing_stop_enabled', True)
+        self.trailing_stop_activation = self.backtest_config.get('trailing_stop_activation', 1.5)  # فعال شدن بعد از 1.5R سود
+        self.trailing_stop_distance = self.backtest_config.get('trailing_stop_distance', 1.0)  # فاصله 1R از قیمت
 
         # tracking برای drawdown دقیق
         self.peak_equity = self.initial_balance
@@ -485,7 +495,9 @@ class FastBacktestEngine:
             patterns_found=signal['patterns'],
             indicators_snapshot=signal['indicators'],
             signal_reason=signal.get('reason', ''),
-            strategies_triggered=signal.get('strategies', [])
+            strategies_triggered=signal.get('strategies', []),
+            highest_price=entry_price,  # برای trailing stop
+            lowest_price=entry_price,   # برای trailing stop
         )
 
         self.open_trades.append(trade)
@@ -504,17 +516,55 @@ class FastBacktestEngine:
             exit_price = None
             exit_reason = None
 
+            # محاسبه R (فاصله SL اولیه)
+            initial_sl_distance = abs(trade.entry_price - trade.sl_price)
+
+            # به‌روزرسانی Trailing Stop
+            if self.trailing_stop_enabled and initial_sl_distance > 0:
+                if trade.direction == TradeDirection.LONG:
+                    # به‌روزرسانی highest price
+                    if high > trade.highest_price:
+                        trade.highest_price = high
+
+                    # محاسبه سود فعلی به R
+                    current_profit_r = (trade.highest_price - trade.entry_price) / initial_sl_distance
+
+                    # اگر سود به حد فعال‌سازی رسید
+                    if current_profit_r >= self.trailing_stop_activation:
+                        new_trailing_sl = trade.highest_price - (initial_sl_distance * self.trailing_stop_distance)
+                        # فقط اگر trailing SL بالاتر از SL فعلی باشد
+                        if trade.trailing_sl_price is None or new_trailing_sl > trade.trailing_sl_price:
+                            trade.trailing_sl_price = new_trailing_sl
+
+                else:  # SHORT
+                    # به‌روزرسانی lowest price
+                    if low < trade.lowest_price:
+                        trade.lowest_price = low
+
+                    # محاسبه سود فعلی به R
+                    current_profit_r = (trade.entry_price - trade.lowest_price) / initial_sl_distance
+
+                    # اگر سود به حد فعال‌سازی رسید
+                    if current_profit_r >= self.trailing_stop_activation:
+                        new_trailing_sl = trade.lowest_price + (initial_sl_distance * self.trailing_stop_distance)
+                        # فقط اگر trailing SL پایین‌تر از SL فعلی باشد
+                        if trade.trailing_sl_price is None or new_trailing_sl < trade.trailing_sl_price:
+                            trade.trailing_sl_price = new_trailing_sl
+
+            # تعیین SL فعال (trailing یا اصلی)
+            active_sl = trade.trailing_sl_price if trade.trailing_sl_price else trade.sl_price
+
             if trade.direction == TradeDirection.LONG:
-                if low <= trade.sl_price:
-                    exit_price = trade.sl_price
-                    exit_reason = 'sl_hit'
+                if low <= active_sl:
+                    exit_price = active_sl
+                    exit_reason = 'trailing_sl' if trade.trailing_sl_price else 'sl_hit'
                 elif high >= trade.tp_price:
                     exit_price = trade.tp_price
                     exit_reason = 'tp_hit'
             else:  # SHORT
-                if high >= trade.sl_price:
-                    exit_price = trade.sl_price
-                    exit_reason = 'sl_hit'
+                if high >= active_sl:
+                    exit_price = active_sl
+                    exit_reason = 'trailing_sl' if trade.trailing_sl_price else 'sl_hit'
                 elif low <= trade.tp_price:
                     exit_price = trade.tp_price
                     exit_reason = 'tp_hit'
