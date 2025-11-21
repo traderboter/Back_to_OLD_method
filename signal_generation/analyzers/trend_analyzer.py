@@ -67,12 +67,13 @@ class TrendAnalyzer(BaseAnalyzer):
         super().__init__(config)
         
         # Get trend-specific configuration
-        trend_config = config.get('trend', {})
-        
-        # Minimum slope threshold for trend confirmation
-        self.min_slope_threshold = trend_config.get('min_slope_threshold', 0.0001)
-        
-        # Lookback period for slope calculation
+        # Try both 'trend' and 'trend_analyzer' keys (backward compatibility)
+        trend_config = config.get('trend_analyzer', config.get('trend', {}))
+
+        # Minimum slope threshold for trend confirmation (global default)
+        self.min_slope_threshold = trend_config.get('min_slope_threshold', 0.0002)
+
+        # Lookback period for slope calculation (global default)
         self.slope_lookback = trend_config.get('slope_lookback', 5)
         
         # Enable/disable this analyzer
@@ -123,7 +124,7 @@ class TrendAnalyzer(BaseAnalyzer):
             current_ema100 = df['ema_100'].iloc[-1]
             
             # 4. Calculate EMA slopes (rate of change)
-            ema_slopes = self._calculate_ema_slopes(df)
+            ema_slopes = self._calculate_ema_slopes(df, timeframe)
             
             # 5. Determine EMA arrangement pattern
             ema_alignment = self._determine_ema_alignment(
@@ -194,17 +195,20 @@ class TrendAnalyzer(BaseAnalyzer):
                 'error': str(e)
             })
     
-    def _calculate_ema_slopes(self, df: pd.DataFrame) -> Dict[str, float]:
+    def _calculate_ema_slopes(self, df: pd.DataFrame, timeframe: str = None) -> Dict[str, float]:
         """
         Calculate rate of change (slope) for EMAs.
-        
+
         Args:
             df: DataFrame with EMA columns
-            
+            timeframe: Current timeframe for per-TF lookback
+
         Returns:
             Dictionary with slopes for each EMA
         """
-        lookback = min(self.slope_lookback, len(df) - 1)
+        # Get per-TF lookback or use global default
+        lookback = self.get_threshold('slope_lookback', self.slope_lookback, timeframe)
+        lookback = min(lookback, len(df) - 1)
         
         if lookback < 2:
             return {'ema20': 0.0, 'ema50': 0.0, 'ema100': 0.0}
@@ -300,7 +304,8 @@ class TrendAnalyzer(BaseAnalyzer):
         ema50_slope = slopes['ema50']
 
         # Get per-TF threshold (or fall back to global/default)
-        min_slope_threshold = self.get_threshold('trend_min_slope', self.min_slope_threshold, timeframe)
+        # Using 'min_slope' to match config.yaml key
+        min_slope_threshold = self.get_threshold('min_slope', self.min_slope_threshold, timeframe)
 
         # Strong Bullish (strength = 3)
         if (close > ema20 > ema50 > ema100 and
@@ -394,7 +399,8 @@ class TrendAnalyzer(BaseAnalyzer):
         phase = TrendPhase.UNDEFINED  # Default
 
         # Get per-TF threshold (or fall back to global/default)
-        min_slope_threshold = self.get_threshold('trend_min_slope', self.min_slope_threshold, timeframe)
+        # Using 'min_slope' to match config.yaml key
+        min_slope_threshold = self.get_threshold('min_slope', self.min_slope_threshold, timeframe)
 
         if direction == 'sideways' or direction == 'neutral':
             phase = TrendPhase.UNDEFINED

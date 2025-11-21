@@ -132,28 +132,27 @@ signal_generation_v2:
     trend_analyzer:
       enabled: true
       weight: 0.3
+      min_slope_threshold: 0.0002  # Global default (0.02%)
+      slope_lookback: 5  # Number of candles to look back for slope calculation
       strength_thresholds:
         strong: 3
         medium: 2
         weak: 1
-      trend_strength_per_timeframe:
+      # Per-timeframe configuration (follows BaseAnalyzer convention)
+      per_timeframe:
         enabled: true
         5m:
-          min_strength: 0
-          strong_threshold: 4
-          min_slope: 0.0002
+          min_slope: 0.0005  # 0.05% - Higher threshold for noisy 5m timeframe
+          slope_lookback: 5
         15m:
-          min_strength: 0
-          strong_threshold: 3
-          min_slope: 0.00015
+          min_slope: 0.0003  # 0.03% - Moderate threshold
+          slope_lookback: 5
         1h:
-          min_strength: 0
-          strong_threshold: 3
-          min_slope: 0.0001
+          min_slope: 0.0002  # 0.02% - Lower threshold for cleaner data
+          slope_lookback: 5
         4h:
-          min_strength: 0
-          strong_threshold: 2
-          min_slope: 5.0e-05
+          min_slope: 0.0001  # 0.01% - Lowest threshold for long timeframe
+          slope_lookback: 5
       phase_detection:
         enabled: true
         lookback_period: 10
