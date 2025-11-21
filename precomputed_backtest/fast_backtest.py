@@ -29,6 +29,9 @@ from enum import Enum
 # Add parent directory to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
+# Import strategies
+from strategies import StrategyEnsemble, SignalDirection
+
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
@@ -62,6 +65,8 @@ class Trade:
     signal_score: float = 0.0
     patterns_found: List[str] = None
     indicators_snapshot: Dict[str, float] = None
+    signal_reason: str = ""
+    strategies_triggered: List[str] = None
 
 
 class PrecomputedDataLoader:
@@ -153,6 +158,13 @@ class FastBacktestEngine:
         self.risk_per_trade = config.get('risk_management', {}).get('risk_per_trade', 0.02)
         self.min_signal_score = 30  # آستانه پایین‌تر برای تولید سیگنال بیشتر
 
+        # استراتژی ensemble
+        self.strategy_ensemble = StrategyEnsemble({
+            'voting_threshold': 0.5,
+            'min_agreement': 2,
+            'min_score': self.min_signal_score
+        })
+
         # وضعیت
         self.balance = self.initial_balance
         self.equity = self.initial_balance
@@ -243,9 +255,9 @@ class FastBacktestEngine:
 
     def _check_signal(self, df_signal: pd.DataFrame, current_time: datetime, symbol: str) -> Optional[Dict]:
         """
-        بررسی وجود سیگنال در زمان فعلی
+        بررسی وجود سیگنال در زمان فعلی با استفاده از استراتژی‌های حرفه‌ای
 
-        این متد از داده‌های از پیش محاسبه شده استفاده می‌کند.
+        این متد از StrategyEnsemble برای تحلیل استفاده می‌کند.
         """
         # پیدا کردن نزدیک‌ترین کندل signal timeframe
         try:
@@ -258,34 +270,34 @@ class FastBacktestEngine:
         except:
             return None
 
-        # بررسی الگوها
+        # استفاده از StrategyEnsemble برای تحلیل
+        direction, score, reason, details = self.strategy_ensemble.analyze(row)
+
+        if direction is None or score < self.min_signal_score:
+            return None
+
+        # تبدیل جهت به TradeDirection
+        if direction == SignalDirection.LONG:
+            trade_direction = TradeDirection.LONG
+        elif direction == SignalDirection.SHORT:
+            trade_direction = TradeDirection.SHORT
+        else:
+            return None
+
+        # جمع‌آوری الگوهای پیدا شده
         patterns_found = []
         pattern_cols = [c for c in df_signal.columns if c.startswith('pattern_') and not c.endswith('_direction') and not c.endswith('_score')]
-
         for col in pattern_cols:
             if col in row and row[col] == 1:
-                pattern_name = col.replace('pattern_', '')
-                patterns_found.append(pattern_name)
-
-        if not patterns_found:
-            return None
-
-        # محاسبه امتیاز ساده
-        score = self._calculate_signal_score(row, patterns_found)
-
-        if score < self.min_signal_score:
-            return None
-
-        # تعیین جهت
-        direction = self._determine_direction(row, patterns_found)
-        if direction is None:
-            return None
+                patterns_found.append(col.replace('pattern_', ''))
 
         return {
             'score': score,
-            'direction': direction,
+            'direction': trade_direction,
             'patterns': patterns_found,
-            'indicators': self._get_indicators_snapshot(row)
+            'indicators': self._get_indicators_snapshot(row),
+            'reason': reason,
+            'strategies': details.get('long_strategies', []) if direction == SignalDirection.LONG else details.get('short_strategies', [])
         }
 
     def _calculate_signal_score(self, row: pd.Series, patterns: List[str]) -> float:
@@ -441,11 +453,14 @@ class FastBacktestEngine:
             tp_price=tp_price,
             signal_score=signal['score'],
             patterns_found=signal['patterns'],
-            indicators_snapshot=signal['indicators']
+            indicators_snapshot=signal['indicators'],
+            signal_reason=signal.get('reason', ''),
+            strategies_triggered=signal.get('strategies', [])
         )
 
         self.open_trades.append(trade)
-        logger.debug(f"Opened {signal['direction'].value} trade at {entry_price:.2f}")
+        strategies_str = ', '.join(signal.get('strategies', []))
+        logger.debug(f"Opened {signal['direction'].value} trade at {entry_price:.2f} | Strategies: {strategies_str}")
 
     def _update_open_trades(self, current_row: pd.Series, current_time: datetime):
         """به‌روزرسانی معاملات باز"""
@@ -571,7 +586,9 @@ class FastBacktestEngine:
                 'pnl_percent': t.pnl_percent,
                 'exit_reason': t.exit_reason,
                 'signal_score': t.signal_score,
-                'patterns_found': t.patterns_found
+                'patterns_found': t.patterns_found,
+                'signal_reason': t.signal_reason,
+                'strategies_triggered': t.strategies_triggered
             }
             for t in self.closed_trades
         ]
@@ -800,10 +817,11 @@ class FastBacktestEngine:
         csv_path = output_dir / f"trades_{timestamp}.csv"
 
         with open(csv_path, 'w') as f:
-            f.write("id,symbol,direction,entry_time,entry_price,exit_time,exit_price,pnl,pnl_percent,exit_reason,patterns\n")
+            f.write("id,symbol,direction,entry_time,entry_price,exit_time,exit_price,pnl,pnl_percent,exit_reason,patterns,strategies\n")
             for t in self.results.get('trades', []):
                 patterns = '|'.join(t.get('patterns_found', []) or [])
-                f.write(f"{t['id']},{t['symbol']},{t['direction']},{t['entry_time']},{t['entry_price']:.2f},{t['exit_time']},{t['exit_price']:.2f},{t['pnl']:.2f},{t.get('pnl_percent', 0):.2f},{t['exit_reason']},{patterns}\n")
+                strategies = '|'.join(t.get('strategies_triggered', []) or [])
+                f.write(f"{t['id']},{t['symbol']},{t['direction']},{t['entry_time']},{t['entry_price']:.2f},{t['exit_time']},{t['exit_price']:.2f},{t['pnl']:.2f},{t.get('pnl_percent', 0):.2f},{t['exit_reason']},{patterns},{strategies}\n")
 
         logger.info(f"Trades exported to: {csv_path}")
         return csv_path
