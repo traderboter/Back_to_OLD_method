@@ -660,14 +660,42 @@ class FastBacktestEngine:
             times = [p['time'] for p in equity_data]
             equities = [p['equity'] for p in equity_data]
 
-            plt.figure(figsize=(12, 6))
-            plt.plot(equities, 'b-', linewidth=1)
-            plt.axhline(y=self.initial_balance, color='r', linestyle='--', alpha=0.5, label='Initial Balance')
-            plt.title('Equity Curve')
-            plt.xlabel('Time')
-            plt.ylabel('Equity (USDT)')
-            plt.legend()
-            plt.grid(True, alpha=0.3)
+            # نمودار اصلی با drawdown
+            fig, axes = plt.subplots(2, 1, figsize=(14, 8), gridspec_kw={'height_ratios': [3, 1]})
+
+            # Equity Curve
+            ax1 = axes[0]
+            ax1.plot(equities, 'b-', linewidth=1.2, label='Equity')
+            ax1.axhline(y=self.initial_balance, color='gray', linestyle='--', alpha=0.5, label='Initial Balance')
+            ax1.fill_between(range(len(equities)), self.initial_balance, equities,
+                           where=[e >= self.initial_balance for e in equities],
+                           alpha=0.3, color='green', label='Profit')
+            ax1.fill_between(range(len(equities)), self.initial_balance, equities,
+                           where=[e < self.initial_balance for e in equities],
+                           alpha=0.3, color='red', label='Loss')
+            ax1.set_title('Equity Curve', fontsize=14, fontweight='bold')
+            ax1.set_ylabel('Equity (USDT)')
+            ax1.legend(loc='upper left')
+            ax1.grid(True, alpha=0.3)
+
+            # Drawdown
+            ax2 = axes[1]
+            peak = self.initial_balance
+            drawdowns = []
+            for equity in equities:
+                if equity > peak:
+                    peak = equity
+                dd = (peak - equity) / peak * 100
+                drawdowns.append(dd)
+
+            ax2.fill_between(range(len(drawdowns)), 0, drawdowns, color='red', alpha=0.5)
+            ax2.set_title('Drawdown %', fontsize=12)
+            ax2.set_xlabel('Time')
+            ax2.set_ylabel('Drawdown %')
+            ax2.grid(True, alpha=0.3)
+            ax2.invert_yaxis()
+
+            plt.tight_layout()
 
             chart_path = output_dir / f"equity_curve_{timestamp}.png"
             plt.savefig(chart_path, dpi=150, bbox_inches='tight')
@@ -679,6 +707,88 @@ class FastBacktestEngine:
         except ImportError:
             logger.info("matplotlib not available, skipping chart generation")
             return csv_path
+
+    def save_performance_summary(self, output_dir: str = None):
+        """ذخیره نمودار خلاصه عملکرد"""
+        if output_dir is None:
+            output_dir = Path(__file__).parent / 'reports'
+            output_dir.mkdir(exist_ok=True)
+
+        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+
+        try:
+            import matplotlib.pyplot as plt
+
+            stats = self.results['statistics']
+            trades = self.results.get('trades', [])
+
+            fig, axes = plt.subplots(2, 2, figsize=(14, 10))
+
+            # 1. توزیع سود/زیان
+            ax1 = axes[0, 0]
+            pnls = [t['pnl'] for t in trades]
+            colors = ['green' if p > 0 else 'red' for p in pnls]
+            ax1.bar(range(len(pnls)), pnls, color=colors, alpha=0.7, width=1.0)
+            ax1.axhline(y=0, color='black', linewidth=0.5)
+            ax1.set_title('Trade PnL Distribution', fontsize=12, fontweight='bold')
+            ax1.set_xlabel('Trade #')
+            ax1.set_ylabel('PnL (USDT)')
+
+            # 2. هیستوگرام سود/زیان
+            ax2 = axes[0, 1]
+            ax2.hist(pnls, bins=30, color='steelblue', edgecolor='black', alpha=0.7)
+            ax2.axvline(x=0, color='red', linestyle='--', linewidth=1)
+            ax2.axvline(x=np.mean(pnls), color='green', linestyle='--', linewidth=1, label=f'Mean: {np.mean(pnls):.2f}')
+            ax2.set_title('PnL Histogram', fontsize=12, fontweight='bold')
+            ax2.set_xlabel('PnL (USDT)')
+            ax2.set_ylabel('Frequency')
+            ax2.legend()
+
+            # 3. نرخ برد/باخت
+            ax3 = axes[1, 0]
+            win_rate = stats['win_rate']
+            loss_rate = 100 - win_rate
+            ax3.pie([win_rate, loss_rate], labels=['Wins', 'Losses'],
+                   colors=['green', 'red'], autopct='%1.1f%%', startangle=90)
+            ax3.set_title(f"Win Rate: {win_rate:.1f}%", fontsize=12, fontweight='bold')
+
+            # 4. آمار کلیدی
+            ax4 = axes[1, 1]
+            ax4.axis('off')
+            summary_text = f"""
+            PERFORMANCE SUMMARY
+            ═══════════════════════════════════
+
+            Total Trades:       {stats['total_trades']}
+            Win Rate:           {stats['win_rate']:.1f}%
+
+            Total Return:       {stats['total_return']:.2f}%
+            Profit Factor:      {stats['profit_factor']:.2f}
+            Max Drawdown:       {stats['max_drawdown']:.2f}%
+
+            Average Win:        {stats['avg_win']:.2f} USDT
+            Average Loss:       {stats['avg_loss']:.2f} USDT
+
+            Gross Profit:       {stats['gross_profit']:,.2f} USDT
+            Gross Loss:         {stats['gross_loss']:,.2f} USDT
+            Net Profit:         {stats['total_pnl']:,.2f} USDT
+            """
+            ax4.text(0.1, 0.5, summary_text, fontsize=11, fontfamily='monospace',
+                    verticalalignment='center', transform=ax4.transAxes)
+
+            plt.suptitle('Backtest Performance Summary', fontsize=16, fontweight='bold', y=1.02)
+            plt.tight_layout()
+
+            summary_path = output_dir / f"performance_summary_{timestamp}.png"
+            plt.savefig(summary_path, dpi=150, bbox_inches='tight')
+            plt.close()
+
+            logger.info(f"Performance summary saved to: {summary_path}")
+            return summary_path
+
+        except ImportError:
+            logger.info("matplotlib not available, skipping summary chart")
+            return None
 
     def export_trades_csv(self, output_dir: str = None):
         """صادر کردن معاملات به CSV"""
@@ -763,6 +873,10 @@ def main():
     equity_path = engine.save_equity_curve()
     if equity_path:
         print(f"  - Equity curve: {equity_path}")
+
+    summary_path = engine.save_performance_summary()
+    if summary_path:
+        print(f"  - Performance summary: {summary_path}")
 
     trades_path = engine.export_trades_csv()
     print(f"  - Trades CSV: {trades_path}")
