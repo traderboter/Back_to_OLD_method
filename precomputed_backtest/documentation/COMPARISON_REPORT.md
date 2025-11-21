@@ -1,10 +1,21 @@
 # Comparison Report: Fast Backtest vs Original Backtest
 
-Generated: 2025-11-21
+Generated: 2025-11-21 (Updated)
 
 ## Executive Summary
 
-This document compares the two backtest systems available in this project.
+This document compares the two backtest systems and their scoring methods (NEW/OLD/HYBRID).
+
+## IMPORTANT: Scoring Method Alignment
+
+Both systems now use **13 multipliers** for all scoring methods.
+The differences are in `max_score` and `min_signal_score` thresholds:
+
+| Method | Max Score | Min Signal Score | Strong Threshold |
+|--------|-----------|------------------|------------------|
+| NEW | 100 | 50 | 70 |
+| OLD | Unlimited | 200 | 500 |
+| HYBRID | 200 | 100 | 300 |
 
 ## Systems Overview
 
@@ -31,30 +42,27 @@ This document compares the two backtest systems available in this project.
 
 ## Test Results
 
-### Fast Backtest (OLD Scoring Method)
-```
-Date: 2025-11-21
-Symbol: BTC-USDT
-Candles Processed: 33,529
-Duration: ~9 seconds
+### Fast Backtest Results by Scoring Method
 
-Results:
-- Total Trades: 6
-- Win Rate: 50.0%
-- Total Return: 0.11%
-- Profit Factor: 2.04
-- Max Drawdown: 0.12%
-- Final Equity: 10,010.79 USDT
-```
+| Metric | NEW | OLD | HYBRID |
+|--------|-----|-----|--------|
+| Total Trades | 1,548 | 6 | 1,547 |
+| Win Rate | 39.5% | 50.0% | 39.5% |
+| Total Return | -26.74% | +0.11% | -26.64% |
+| Profit Factor | 0.60 | 2.04 | 0.60 |
+| Max Drawdown | 27.70% | 0.12% | 27.60% |
+| Duration | ~9 sec | ~9 sec | ~9 sec |
 
-### Original Backtest (OLD Scoring Method)
+**Key Observation**: OLD method is more selective (6 trades vs 1500+) due to higher `min_signal_score`.
+
+### Original Backtest
 ```
 Status: Very slow (~31,588 steps required)
 Duration: 329 days of historical data
 Timeframes: 5m, 15m, 1h, 4h
 Analyzers: 11 (Trend, Momentum, Volume, Pattern, SR, etc.)
 
-Could not complete within reasonable time for this comparison.
+Note: Takes several hours to complete.
 ```
 
 ## Key Differences
