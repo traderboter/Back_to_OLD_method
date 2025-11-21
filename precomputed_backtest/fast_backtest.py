@@ -151,7 +151,7 @@ class FastBacktestEngine:
 
         # تنظیمات معامله
         self.risk_per_trade = config.get('risk_management', {}).get('risk_per_trade', 0.02)
-        self.min_signal_score = config.get('signal_processing', {}).get('min_score_threshold', 60)
+        self.min_signal_score = 30  # آستانه پایین‌تر برای تولید سیگنال بیشتر
 
         # وضعیت
         self.balance = self.initial_balance
@@ -292,47 +292,87 @@ class FastBacktestEngine:
         """محاسبه امتیاز سیگنال"""
         score = 0.0
 
-        # امتیاز الگوها
-        score += len(patterns) * 15
+        # امتیاز الگوها - هر الگو 20 امتیاز
+        score += len(patterns) * 20
 
         # امتیاز RSI
-        if 'rsi' in row:
+        if 'rsi' in row and pd.notna(row['rsi']):
             rsi = row['rsi']
-            if rsi < 30 or rsi > 70:
-                score += 10
+            if rsi < 30:
+                score += 15  # oversold - bullish
+            elif rsi > 70:
+                score += 15  # overbought - bearish
+            elif 40 < rsi < 60:
+                score += 5   # neutral zone
 
         # امتیاز MACD
         if 'macd' in row and 'macd_signal' in row:
-            if row['macd'] > row['macd_signal']:
-                score += 5
+            if pd.notna(row['macd']) and pd.notna(row['macd_signal']):
+                if abs(row['macd'] - row['macd_signal']) > 0:
+                    score += 10
 
-        # امتیاز روند
-        if 'ema_20' in row and 'ema_50' in row:
-            if row['close'] > row['ema_20'] > row['ema_50']:
-                score += 10
-            elif row['close'] < row['ema_20'] < row['ema_50']:
-                score += 10
+        # امتیاز روند (EMA alignment)
+        if 'ema_20' in row and 'ema_50' in row and 'close' in row:
+            if pd.notna(row['ema_20']) and pd.notna(row['ema_50']):
+                if row['close'] > row['ema_20'] > row['ema_50']:
+                    score += 15  # uptrend
+                elif row['close'] < row['ema_20'] < row['ema_50']:
+                    score += 15  # downtrend
 
         return min(score, 100)
 
     def _determine_direction(self, row: pd.Series, patterns: List[str]) -> Optional[TradeDirection]:
-        """تعیین جهت معامله"""
-        bullish_patterns = ['hammer', 'morning_star', 'engulfing', 'piercing_line', 'three_white_soldiers']
-        bearish_patterns = ['shooting_star', 'evening_star', 'dark_cloud_cover', 'three_black_crows', 'hanging_man']
+        """تعیین جهت معامله بر اساس الگوها و اندیکاتورها"""
+        bullish_patterns = ['hammer', 'morning_star', 'piercing_line', 'three_white_soldiers', 'harami']
+        bearish_patterns = ['shooting_star', 'evening_star', 'dark_cloud_cover', 'three_black_crows']
 
-        bullish_count = sum(1 for p in patterns if any(bp in p.lower() for bp in bullish_patterns))
-        bearish_count = sum(1 for p in patterns if any(bp in p.lower() for bp in bearish_patterns))
+        bullish_score = 0
+        bearish_score = 0
+
+        # بررسی الگوها
+        for p in patterns:
+            p_lower = p.lower()
+            if any(bp in p_lower for bp in bullish_patterns):
+                bullish_score += 2
+            elif any(bp in p_lower for bp in bearish_patterns):
+                bearish_score += 2
+            elif 'engulfing' in p_lower:
+                # engulfing می‌تواند هر دو جهت باشد - بررسی با کندل
+                if row['close'] > row['open']:
+                    bullish_score += 2
+                else:
+                    bearish_score += 2
+            elif 'doji' in p_lower:
+                # doji نشان‌دهنده بلاتکلیفی - بررسی روند قبلی
+                pass
 
         # بررسی RSI
-        if 'rsi' in row:
+        if 'rsi' in row and pd.notna(row['rsi']):
             if row['rsi'] < 30:
-                bullish_count += 1
+                bullish_score += 1  # oversold
             elif row['rsi'] > 70:
-                bearish_count += 1
+                bearish_score += 1  # overbought
 
-        if bullish_count > bearish_count:
+        # بررسی MACD
+        if 'macd' in row and 'macd_signal' in row:
+            if pd.notna(row['macd']) and pd.notna(row['macd_signal']):
+                if row['macd'] > row['macd_signal']:
+                    bullish_score += 1
+                else:
+                    bearish_score += 1
+
+        # بررسی روند EMA
+        if 'ema_20' in row and 'ema_50' in row:
+            if pd.notna(row['ema_20']) and pd.notna(row['ema_50']):
+                if row['close'] > row['ema_20'] > row['ema_50']:
+                    bullish_score += 1
+                elif row['close'] < row['ema_20'] < row['ema_50']:
+                    bearish_score += 1
+
+        # تصمیم نهایی
+        if bullish_score > bearish_score and bullish_score >= 2:
             return TradeDirection.LONG
-        elif bearish_count > bullish_count:
+        elif bearish_score > bullish_score and bearish_score >= 2:
             return TradeDirection.SHORT
 
         return None
