@@ -14,6 +14,7 @@ import numpy as np
 import yaml
 import argparse
 from tqdm import tqdm
+from scipy.signal import find_peaks
 
 logging.basicConfig(
     level=logging.INFO,
@@ -300,6 +301,260 @@ class SimpleCandlePatternDetector:
         return False, 'none', 0
 
 
+class SimpleChartPatternDetector:
+    """تشخیص‌دهنده الگوهای چارت (Chart Patterns)"""
+
+    def __init__(self, min_window: int = 20, tolerance: float = 0.02, shoulder_tolerance: float = 0.05):
+        self.min_window = min_window
+        self.tolerance = tolerance
+        self.shoulder_tolerance = shoulder_tolerance
+
+    def detect_double_top(self, highs: np.ndarray) -> Tuple[bool, float]:
+        """تشخیص الگوی Double Top (نزولی)"""
+        if len(highs) < self.min_window:
+            return False, 0
+
+        peaks, _ = find_peaks(highs, distance=5, prominence=np.std(highs) * 0.3)
+        if len(peaks) < 2:
+            return False, 0
+
+        last_two = peaks[-2:]
+        peak_heights = highs[last_two]
+        height_diff = abs(peak_heights[0] - peak_heights[1]) / max(peak_heights[0], 0.0001)
+
+        if height_diff < self.tolerance:
+            return True, 0.75
+        return False, 0
+
+    def detect_double_bottom(self, lows: np.ndarray) -> Tuple[bool, float]:
+        """تشخیص الگوی Double Bottom (صعودی)"""
+        if len(lows) < self.min_window:
+            return False, 0
+
+        inverted = -lows
+        troughs, _ = find_peaks(inverted, distance=5, prominence=np.std(lows) * 0.3)
+        if len(troughs) < 2:
+            return False, 0
+
+        last_two = troughs[-2:]
+        trough_depths = lows[last_two]
+        depth_diff = abs(trough_depths[0] - trough_depths[1]) / max(abs(trough_depths[0]), 0.0001)
+
+        if depth_diff < self.tolerance:
+            return True, 0.75
+        return False, 0
+
+    def detect_head_shoulders(self, highs: np.ndarray) -> Tuple[bool, float]:
+        """تشخیص الگوی Head and Shoulders (نزولی)"""
+        if len(highs) < 30:
+            return False, 0
+
+        peaks, _ = find_peaks(highs, distance=5, prominence=np.std(highs) * 0.3)
+        if len(peaks) < 3:
+            return False, 0
+
+        last_three = peaks[-3:]
+        peak_heights = highs[last_three]
+
+        # سر (وسط) باید بالاتر از شانه‌ها باشد
+        if peak_heights[1] <= peak_heights[0] or peak_heights[1] <= peak_heights[2]:
+            return False, 0
+
+        # شانه‌ها باید ارتفاع مشابه داشته باشند
+        shoulder_diff = abs(peak_heights[0] - peak_heights[2]) / max(peak_heights[0], 0.0001)
+        if shoulder_diff < self.shoulder_tolerance:
+            return True, 0.85
+        return False, 0
+
+    def detect_inverse_head_shoulders(self, lows: np.ndarray) -> Tuple[bool, float]:
+        """تشخیص الگوی Inverse Head and Shoulders (صعودی)"""
+        if len(lows) < 30:
+            return False, 0
+
+        inverted = -lows
+        troughs, _ = find_peaks(inverted, distance=5, prominence=np.std(lows) * 0.3)
+        if len(troughs) < 3:
+            return False, 0
+
+        last_three = troughs[-3:]
+        trough_depths = lows[last_three]
+
+        # سر (وسط) باید پایین‌تر از شانه‌ها باشد
+        if trough_depths[1] >= trough_depths[0] or trough_depths[1] >= trough_depths[2]:
+            return False, 0
+
+        # شانه‌ها باید عمق مشابه داشته باشند
+        shoulder_diff = abs(trough_depths[0] - trough_depths[2]) / max(abs(trough_depths[0]), 0.0001)
+        if shoulder_diff < self.shoulder_tolerance:
+            return True, 0.85
+        return False, 0
+
+    def detect_ascending_triangle(self, highs: np.ndarray, lows: np.ndarray) -> Tuple[bool, float]:
+        """تشخیص الگوی Ascending Triangle (صعودی)"""
+        if len(highs) < self.min_window:
+            return False, 0
+
+        peaks, _ = find_peaks(highs, distance=5, prominence=np.std(highs) * 0.2)
+        inverted = -lows
+        troughs, _ = find_peaks(inverted, distance=5, prominence=np.std(lows) * 0.2)
+
+        if len(peaks) < 2 or len(troughs) < 2:
+            return False, 0
+
+        # سقف‌های تقریباً مسطح
+        peak_vals = highs[peaks[-3:]] if len(peaks) >= 3 else highs[peaks]
+        high_flat = np.std(peak_vals) / np.mean(peak_vals) < 0.02
+
+        # کف‌های صعودی
+        trough_vals = lows[troughs[-3:]] if len(troughs) >= 3 else lows[troughs]
+        lows_rising = all(trough_vals[i] < trough_vals[i+1] for i in range(len(trough_vals)-1)) if len(trough_vals) > 1 else False
+
+        if high_flat and lows_rising:
+            return True, 0.7
+        return False, 0
+
+    def detect_descending_triangle(self, highs: np.ndarray, lows: np.ndarray) -> Tuple[bool, float]:
+        """تشخیص الگوی Descending Triangle (نزولی)"""
+        if len(highs) < self.min_window:
+            return False, 0
+
+        peaks, _ = find_peaks(highs, distance=5, prominence=np.std(highs) * 0.2)
+        inverted = -lows
+        troughs, _ = find_peaks(inverted, distance=5, prominence=np.std(lows) * 0.2)
+
+        if len(peaks) < 2 or len(troughs) < 2:
+            return False, 0
+
+        # کف‌های تقریباً مسطح
+        trough_vals = lows[troughs[-3:]] if len(troughs) >= 3 else lows[troughs]
+        low_flat = np.std(trough_vals) / np.mean(trough_vals) < 0.02
+
+        # سقف‌های نزولی
+        peak_vals = highs[peaks[-3:]] if len(peaks) >= 3 else highs[peaks]
+        highs_falling = all(peak_vals[i] > peak_vals[i+1] for i in range(len(peak_vals)-1)) if len(peak_vals) > 1 else False
+
+        if low_flat and highs_falling:
+            return True, 0.7
+        return False, 0
+
+    def detect_symmetric_triangle(self, highs: np.ndarray, lows: np.ndarray) -> Tuple[bool, float]:
+        """تشخیص الگوی Symmetric Triangle (خنثی)"""
+        if len(highs) < self.min_window:
+            return False, 0
+
+        peaks, _ = find_peaks(highs, distance=5, prominence=np.std(highs) * 0.2)
+        inverted = -lows
+        troughs, _ = find_peaks(inverted, distance=5, prominence=np.std(lows) * 0.2)
+
+        if len(peaks) < 2 or len(troughs) < 2:
+            return False, 0
+
+        peak_vals = highs[peaks[-3:]] if len(peaks) >= 3 else highs[peaks]
+        trough_vals = lows[troughs[-3:]] if len(troughs) >= 3 else lows[troughs]
+
+        # سقف‌های نزولی
+        highs_falling = all(peak_vals[i] > peak_vals[i+1] for i in range(len(peak_vals)-1)) if len(peak_vals) > 1 else False
+        # کف‌های صعودی
+        lows_rising = all(trough_vals[i] < trough_vals[i+1] for i in range(len(trough_vals)-1)) if len(trough_vals) > 1 else False
+
+        if highs_falling and lows_rising:
+            return True, 0.65
+        return False, 0
+
+    def detect_bull_flag(self, closes: np.ndarray) -> Tuple[bool, float]:
+        """تشخیص الگوی Bull Flag (صعودی)"""
+        if len(closes) < 15:
+            return False, 0
+
+        # روند صعودی قوی در 10 کندل اول (pole)
+        pole = closes[:10]
+        pole_change = (pole[-1] - pole[0]) / pole[0]
+
+        # تثبیت/اصلاح کوچک در کندل‌های بعدی (flag)
+        flag = closes[10:]
+        flag_change = (flag[-1] - flag[0]) / flag[0] if len(flag) > 0 else 0
+
+        if pole_change > 0.03 and -0.02 < flag_change < 0.01:
+            return True, 0.7
+        return False, 0
+
+    def detect_bear_flag(self, closes: np.ndarray) -> Tuple[bool, float]:
+        """تشخیص الگوی Bear Flag (نزولی)"""
+        if len(closes) < 15:
+            return False, 0
+
+        # روند نزولی قوی در 10 کندل اول (pole)
+        pole = closes[:10]
+        pole_change = (pole[-1] - pole[0]) / pole[0]
+
+        # تثبیت/اصلاح کوچک در کندل‌های بعدی (flag)
+        flag = closes[10:]
+        flag_change = (flag[-1] - flag[0]) / flag[0] if len(flag) > 0 else 0
+
+        if pole_change < -0.03 and -0.01 < flag_change < 0.02:
+            return True, 0.7
+        return False, 0
+
+    def detect_cup_and_handle(self, closes: np.ndarray) -> Tuple[bool, float]:
+        """تشخیص الگوی Cup and Handle (صعودی)"""
+        if len(closes) < 30:
+            return False, 0
+
+        # پیدا کردن کف Cup
+        min_idx = np.argmin(closes[:25])
+        if min_idx < 5 or min_idx > 20:
+            return False, 0
+
+        # بررسی شکل U
+        left_rim = closes[0]
+        right_rim = closes[25]
+        cup_bottom = closes[min_idx]
+
+        # دو لبه باید تقریباً هم‌ارتفاع باشند
+        rim_diff = abs(left_rim - right_rim) / max(left_rim, 0.0001)
+        if rim_diff > 0.05:
+            return False, 0
+
+        # کف باید پایین‌تر از لبه‌ها باشد
+        if cup_bottom >= min(left_rim, right_rim) * 0.97:
+            return False, 0
+
+        # Handle: اصلاح کوچک بعد از Cup
+        if len(closes) > 25:
+            handle = closes[25:]
+            handle_drop = (max(handle) - min(handle)) / max(handle)
+            if handle_drop < 0.01 or handle_drop > 0.05:
+                return False, 0
+
+        return True, 0.8
+
+    def detect_rising_wedge(self, highs: np.ndarray, lows: np.ndarray) -> Tuple[bool, float]:
+        """تشخیص الگوی Rising Wedge (نزولی)"""
+        if len(highs) < self.min_window:
+            return False, 0
+
+        # هر دو خط روند صعودی ولی همگرا
+        high_slope = (highs[-1] - highs[0]) / len(highs)
+        low_slope = (lows[-1] - lows[0]) / len(lows)
+
+        if high_slope > 0 and low_slope > 0 and low_slope > high_slope:
+            return True, 0.7
+        return False, 0
+
+    def detect_falling_wedge(self, highs: np.ndarray, lows: np.ndarray) -> Tuple[bool, float]:
+        """تشخیص الگوی Falling Wedge (صعودی)"""
+        if len(highs) < self.min_window:
+            return False, 0
+
+        # هر دو خط روند نزولی ولی همگرا
+        high_slope = (highs[-1] - highs[0]) / len(highs)
+        low_slope = (lows[-1] - lows[0]) / len(lows)
+
+        if high_slope < 0 and low_slope < 0 and high_slope > low_slope:
+            return True, 0.7
+        return False, 0
+
+
 class PatternPrecomputer:
     """محاسبه و ذخیره الگوها"""
 
@@ -324,6 +579,7 @@ class PatternPrecomputer:
 
         # تشخیص‌دهنده الگو
         self.detector = SimpleCandlePatternDetector()
+        self.chart_detector = SimpleChartPatternDetector()
 
         logger.info(f"PatternPrecomputer initialized")
         logger.info(f"  Symbols: {self.symbols}")
@@ -341,13 +597,18 @@ class PatternPrecomputer:
         n = len(df)
         result = df.copy()
 
-        # ستون‌های الگو
+        # ستون‌های الگو (کندلی و چارت)
         pattern_names = [
+            # الگوهای کندلی
             'doji', 'hammer', 'shooting_star', 'engulfing',
             'morning_star', 'evening_star', 'three_white_soldiers',
             'three_black_crows', 'harami', 'piercing_line', 'dark_cloud_cover',
             'spinning_top', 'marubozu', 'inverted_hammer', 'hanging_man',
-            'tweezer_top', 'tweezer_bottom', 'dragonfly_doji', 'gravestone_doji'
+            'tweezer_top', 'tweezer_bottom', 'dragonfly_doji', 'gravestone_doji',
+            # الگوهای چارت
+            'double_top', 'double_bottom', 'head_shoulders', 'inverse_head_shoulders',
+            'ascending_triangle', 'descending_triangle', 'symmetric_triangle',
+            'bull_flag', 'bear_flag', 'cup_and_handle', 'rising_wedge', 'falling_wedge'
         ]
 
         for pname in pattern_names:
@@ -480,6 +741,97 @@ class PatternPrecomputer:
                 result.loc[result.index[i], 'pattern_tweezer_bottom_direction'] = direction
                 result.loc[result.index[i], 'pattern_tweezer_bottom_score'] = score
 
+            # الگوهای چارت (نیاز به پنجره داده)
+            window_size = 30
+            if i >= window_size:
+                window_highs = df['high'].iloc[i-window_size:i].values
+                window_lows = df['low'].iloc[i-window_size:i].values
+                window_closes = df['close'].iloc[i-window_size:i].values
+
+                # Double Top
+                found, score = self.chart_detector.detect_double_top(window_highs)
+                if found:
+                    result.loc[result.index[i], 'pattern_double_top'] = 1
+                    result.loc[result.index[i], 'pattern_double_top_direction'] = 'bearish'
+                    result.loc[result.index[i], 'pattern_double_top_score'] = score
+
+                # Double Bottom
+                found, score = self.chart_detector.detect_double_bottom(window_lows)
+                if found:
+                    result.loc[result.index[i], 'pattern_double_bottom'] = 1
+                    result.loc[result.index[i], 'pattern_double_bottom_direction'] = 'bullish'
+                    result.loc[result.index[i], 'pattern_double_bottom_score'] = score
+
+                # Head and Shoulders
+                found, score = self.chart_detector.detect_head_shoulders(window_highs)
+                if found:
+                    result.loc[result.index[i], 'pattern_head_shoulders'] = 1
+                    result.loc[result.index[i], 'pattern_head_shoulders_direction'] = 'bearish'
+                    result.loc[result.index[i], 'pattern_head_shoulders_score'] = score
+
+                # Inverse Head and Shoulders
+                found, score = self.chart_detector.detect_inverse_head_shoulders(window_lows)
+                if found:
+                    result.loc[result.index[i], 'pattern_inverse_head_shoulders'] = 1
+                    result.loc[result.index[i], 'pattern_inverse_head_shoulders_direction'] = 'bullish'
+                    result.loc[result.index[i], 'pattern_inverse_head_shoulders_score'] = score
+
+                # Ascending Triangle
+                found, score = self.chart_detector.detect_ascending_triangle(window_highs, window_lows)
+                if found:
+                    result.loc[result.index[i], 'pattern_ascending_triangle'] = 1
+                    result.loc[result.index[i], 'pattern_ascending_triangle_direction'] = 'bullish'
+                    result.loc[result.index[i], 'pattern_ascending_triangle_score'] = score
+
+                # Descending Triangle
+                found, score = self.chart_detector.detect_descending_triangle(window_highs, window_lows)
+                if found:
+                    result.loc[result.index[i], 'pattern_descending_triangle'] = 1
+                    result.loc[result.index[i], 'pattern_descending_triangle_direction'] = 'bearish'
+                    result.loc[result.index[i], 'pattern_descending_triangle_score'] = score
+
+                # Symmetric Triangle
+                found, score = self.chart_detector.detect_symmetric_triangle(window_highs, window_lows)
+                if found:
+                    result.loc[result.index[i], 'pattern_symmetric_triangle'] = 1
+                    result.loc[result.index[i], 'pattern_symmetric_triangle_direction'] = 'neutral'
+                    result.loc[result.index[i], 'pattern_symmetric_triangle_score'] = score
+
+                # Bull Flag
+                found, score = self.chart_detector.detect_bull_flag(window_closes)
+                if found:
+                    result.loc[result.index[i], 'pattern_bull_flag'] = 1
+                    result.loc[result.index[i], 'pattern_bull_flag_direction'] = 'bullish'
+                    result.loc[result.index[i], 'pattern_bull_flag_score'] = score
+
+                # Bear Flag
+                found, score = self.chart_detector.detect_bear_flag(window_closes)
+                if found:
+                    result.loc[result.index[i], 'pattern_bear_flag'] = 1
+                    result.loc[result.index[i], 'pattern_bear_flag_direction'] = 'bearish'
+                    result.loc[result.index[i], 'pattern_bear_flag_score'] = score
+
+                # Cup and Handle
+                found, score = self.chart_detector.detect_cup_and_handle(window_closes)
+                if found:
+                    result.loc[result.index[i], 'pattern_cup_and_handle'] = 1
+                    result.loc[result.index[i], 'pattern_cup_and_handle_direction'] = 'bullish'
+                    result.loc[result.index[i], 'pattern_cup_and_handle_score'] = score
+
+                # Rising Wedge
+                found, score = self.chart_detector.detect_rising_wedge(window_highs, window_lows)
+                if found:
+                    result.loc[result.index[i], 'pattern_rising_wedge'] = 1
+                    result.loc[result.index[i], 'pattern_rising_wedge_direction'] = 'bearish'
+                    result.loc[result.index[i], 'pattern_rising_wedge_score'] = score
+
+                # Falling Wedge
+                found, score = self.chart_detector.detect_falling_wedge(window_highs, window_lows)
+                if found:
+                    result.loc[result.index[i], 'pattern_falling_wedge'] = 1
+                    result.loc[result.index[i], 'pattern_falling_wedge_direction'] = 'bullish'
+                    result.loc[result.index[i], 'pattern_falling_wedge_score'] = score
+
         return result
 
     def precompute_all(self) -> Dict[str, Dict[str, pd.DataFrame]]:
@@ -537,12 +889,17 @@ class PatternPrecomputer:
             'created_at': datetime.now().isoformat(),
             'symbols': list(results.keys()),
             'timeframes': self.timeframes,
-            'patterns': [
+            'candlestick_patterns': [
                 'doji', 'hammer', 'shooting_star', 'engulfing',
                 'morning_star', 'evening_star', 'three_white_soldiers',
                 'three_black_crows', 'harami', 'piercing_line', 'dark_cloud_cover',
                 'spinning_top', 'marubozu', 'inverted_hammer', 'hanging_man',
                 'tweezer_top', 'tweezer_bottom', 'dragonfly_doji', 'gravestone_doji'
+            ],
+            'chart_patterns': [
+                'double_top', 'double_bottom', 'head_shoulders', 'inverse_head_shoulders',
+                'ascending_triangle', 'descending_triangle', 'symmetric_triangle',
+                'bull_flag', 'bear_flag', 'cup_and_handle', 'rising_wedge', 'falling_wedge'
             ]
         }
 

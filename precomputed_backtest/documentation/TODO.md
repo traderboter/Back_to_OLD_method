@@ -39,11 +39,12 @@
 - [x] Tweezer Top/Bottom ✓
 - [x] Dragonfly Doji ✓
 - [x] Gravestone Doji ✓
-- [ ] Double Top / Double Bottom (chart pattern)
-- [ ] Head and Shoulders (chart pattern)
-- [ ] Triangle patterns (chart pattern)
-- [ ] Flag patterns (chart pattern)
-- [ ] Cup and Handle (chart pattern)
+- [x] Double Top / Double Bottom (chart pattern) ✓
+- [x] Head and Shoulders / Inverse H&S (chart pattern) ✓
+- [x] Triangle patterns: Ascending, Descending, Symmetric (chart pattern) ✓
+- [x] Flag patterns: Bull Flag, Bear Flag (chart pattern) ✓
+- [x] Cup and Handle (chart pattern) ✓
+- [x] Wedge patterns: Rising, Falling (chart pattern) ✓
 
 ### 6. پشتیبانی از نمادهای بیشتر
 - [ ] ETH-USDT
@@ -97,6 +98,7 @@
 - [x] خروجی لیست معاملات به CSV
 - [x] نمودار equity curve با drawdown (matplotlib)
 - [x] نمودار خلاصه عملکرد (4 پنل)
+- [x] الگوهای چارت: Double Top/Bottom, H&S, Triangle, Flag, Cup&Handle, Wedge
 
 ---
 
