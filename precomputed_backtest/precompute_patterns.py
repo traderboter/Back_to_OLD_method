@@ -1,35 +1,19 @@
 """
-Pre-compute Patterns - محاسبه و ذخیره الگوها برای همه تایم‌فریم‌ها
+Pre-compute Patterns - محاسبه و ذخیره الگوها (نسخه مستقل)
 
-این اسکریپت یک بار روی همه داده‌های تاریخی اجرا می‌شود و:
-1. همه الگوهای کندلی را تشخیص می‌دهد (Hammer, Engulfing, ...)
-2. همه الگوهای چارتی را تشخیص می‌دهد (Head & Shoulders, Triangle, ...)
-3. نتایج را در فایل‌های parquet ذخیره می‌کند
-
-Usage:
-    python precompute_patterns.py --symbol BTCUSDT --config config.yaml
+این اسکریپت الگوهای کندلی را برای همه کندل‌ها تشخیص و ذخیره می‌کند.
 """
 
 import sys
-import os
-import asyncio
 import logging
 from pathlib import Path
 from datetime import datetime
-from typing import Dict, List, Optional, Any
+from typing import Dict, List, Optional, Any, Tuple
 import pandas as pd
 import numpy as np
 import yaml
 import argparse
-import json
-
-# Add parent directory to path for imports
-sys.path.insert(0, str(Path(__file__).parent.parent))
-
-from backtest.csv_data_loader import CSVDataLoader
-from signal_generation.shared.indicator_calculator import IndicatorCalculator
-from signal_generation.analyzers.pattern_analyzer import PatternAnalyzer
-from signal_generation.context import AnalysisContext
+from tqdm import tqdm
 
 logging.basicConfig(
     level=logging.INFO,
@@ -38,268 +22,406 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
+class SimpleCandlePatternDetector:
+    """تشخیص‌دهنده ساده الگوهای کندلی"""
+
+    def __init__(self):
+        self.body_threshold = 0.1  # حداقل درصد بدنه نسبت به رنج
+
+    def _body_size(self, open_p: float, close: float, high: float, low: float) -> float:
+        """محاسبه اندازه بدنه نسبت به رنج کل"""
+        range_size = high - low
+        if range_size == 0:
+            return 0
+        return abs(close - open_p) / range_size
+
+    def _is_bullish(self, open_p: float, close: float) -> bool:
+        """آیا کندل صعودی است"""
+        return close > open_p
+
+    def _is_bearish(self, open_p: float, close: float) -> bool:
+        """آیا کندل نزولی است"""
+        return close < open_p
+
+    def _upper_shadow(self, open_p: float, close: float, high: float) -> float:
+        """اندازه سایه بالا"""
+        return high - max(open_p, close)
+
+    def _lower_shadow(self, open_p: float, close: float, low: float) -> float:
+        """اندازه سایه پایین"""
+        return min(open_p, close) - low
+
+    def detect_doji(self, row: pd.Series) -> Tuple[bool, str, float]:
+        """تشخیص الگوی Doji"""
+        body = self._body_size(row['open'], row['close'], row['high'], row['low'])
+        if body < 0.1:  # بدنه خیلی کوچک
+            return True, 'neutral', 0.6
+        return False, 'none', 0
+
+    def detect_hammer(self, row: pd.Series) -> Tuple[bool, str, float]:
+        """تشخیص الگوی Hammer (صعودی)"""
+        o, c, h, l = row['open'], row['close'], row['high'], row['low']
+        body = abs(c - o)
+        lower_shadow = self._lower_shadow(o, c, l)
+        upper_shadow = self._upper_shadow(o, c, h)
+        range_size = h - l
+
+        if range_size == 0:
+            return False, 'none', 0
+
+        # شرایط hammer: سایه پایین بلند، سایه بالا کوتاه
+        if lower_shadow > body * 2 and upper_shadow < body * 0.5:
+            return True, 'bullish', 0.7
+        return False, 'none', 0
+
+    def detect_shooting_star(self, row: pd.Series) -> Tuple[bool, str, float]:
+        """تشخیص الگوی Shooting Star (نزولی)"""
+        o, c, h, l = row['open'], row['close'], row['high'], row['low']
+        body = abs(c - o)
+        lower_shadow = self._lower_shadow(o, c, l)
+        upper_shadow = self._upper_shadow(o, c, h)
+
+        # شرایط shooting star: سایه بالا بلند، سایه پایین کوتاه
+        if upper_shadow > body * 2 and lower_shadow < body * 0.5:
+            return True, 'bearish', 0.7
+        return False, 'none', 0
+
+    def detect_engulfing(self, curr: pd.Series, prev: pd.Series) -> Tuple[bool, str, float]:
+        """تشخیص الگوی Engulfing"""
+        curr_body = abs(curr['close'] - curr['open'])
+        prev_body = abs(prev['close'] - prev['open'])
+
+        # Bullish Engulfing
+        if (self._is_bearish(prev['open'], prev['close']) and
+            self._is_bullish(curr['open'], curr['close']) and
+            curr['open'] <= prev['close'] and
+            curr['close'] >= prev['open'] and
+            curr_body > prev_body):
+            return True, 'bullish', 0.8
+
+        # Bearish Engulfing
+        if (self._is_bullish(prev['open'], prev['close']) and
+            self._is_bearish(curr['open'], curr['close']) and
+            curr['open'] >= prev['close'] and
+            curr['close'] <= prev['open'] and
+            curr_body > prev_body):
+            return True, 'bearish', 0.8
+
+        return False, 'none', 0
+
+    def detect_morning_star(self, c1: pd.Series, c2: pd.Series, c3: pd.Series) -> Tuple[bool, str, float]:
+        """تشخیص الگوی Morning Star (صعودی - 3 کندل)"""
+        # c1: نزولی بزرگ، c2: کوچک (gap down)، c3: صعودی بزرگ
+        if (self._is_bearish(c1['open'], c1['close']) and
+            self._body_size(c2['open'], c2['close'], c2['high'], c2['low']) < 0.3 and
+            self._is_bullish(c3['open'], c3['close']) and
+            c3['close'] > (c1['open'] + c1['close']) / 2):
+            return True, 'bullish', 0.85
+        return False, 'none', 0
+
+    def detect_evening_star(self, c1: pd.Series, c2: pd.Series, c3: pd.Series) -> Tuple[bool, str, float]:
+        """تشخیص الگوی Evening Star (نزولی - 3 کندل)"""
+        # c1: صعودی بزرگ، c2: کوچک (gap up)، c3: نزولی بزرگ
+        if (self._is_bullish(c1['open'], c1['close']) and
+            self._body_size(c2['open'], c2['close'], c2['high'], c2['low']) < 0.3 and
+            self._is_bearish(c3['open'], c3['close']) and
+            c3['close'] < (c1['open'] + c1['close']) / 2):
+            return True, 'bearish', 0.85
+        return False, 'none', 0
+
+    def detect_three_white_soldiers(self, c1: pd.Series, c2: pd.Series, c3: pd.Series) -> Tuple[bool, str, float]:
+        """تشخیص الگوی Three White Soldiers (صعودی)"""
+        if (self._is_bullish(c1['open'], c1['close']) and
+            self._is_bullish(c2['open'], c2['close']) and
+            self._is_bullish(c3['open'], c3['close']) and
+            c2['close'] > c1['close'] and
+            c3['close'] > c2['close']):
+            return True, 'bullish', 0.8
+        return False, 'none', 0
+
+    def detect_three_black_crows(self, c1: pd.Series, c2: pd.Series, c3: pd.Series) -> Tuple[bool, str, float]:
+        """تشخیص الگوی Three Black Crows (نزولی)"""
+        if (self._is_bearish(c1['open'], c1['close']) and
+            self._is_bearish(c2['open'], c2['close']) and
+            self._is_bearish(c3['open'], c3['close']) and
+            c2['close'] < c1['close'] and
+            c3['close'] < c2['close']):
+            return True, 'bearish', 0.8
+        return False, 'none', 0
+
+    def detect_harami(self, curr: pd.Series, prev: pd.Series) -> Tuple[bool, str, float]:
+        """تشخیص الگوی Harami"""
+        # Bullish Harami
+        if (self._is_bearish(prev['open'], prev['close']) and
+            self._is_bullish(curr['open'], curr['close']) and
+            curr['open'] > prev['close'] and
+            curr['close'] < prev['open']):
+            return True, 'bullish', 0.65
+
+        # Bearish Harami
+        if (self._is_bullish(prev['open'], prev['close']) and
+            self._is_bearish(curr['open'], curr['close']) and
+            curr['open'] < prev['close'] and
+            curr['close'] > prev['open']):
+            return True, 'bearish', 0.65
+
+        return False, 'none', 0
+
+    def detect_piercing_line(self, curr: pd.Series, prev: pd.Series) -> Tuple[bool, str, float]:
+        """تشخیص الگوی Piercing Line (صعودی)"""
+        if (self._is_bearish(prev['open'], prev['close']) and
+            self._is_bullish(curr['open'], curr['close']) and
+            curr['open'] < prev['low'] and
+            curr['close'] > (prev['open'] + prev['close']) / 2):
+            return True, 'bullish', 0.75
+        return False, 'none', 0
+
+    def detect_dark_cloud_cover(self, curr: pd.Series, prev: pd.Series) -> Tuple[bool, str, float]:
+        """تشخیص الگوی Dark Cloud Cover (نزولی)"""
+        if (self._is_bullish(prev['open'], prev['close']) and
+            self._is_bearish(curr['open'], curr['close']) and
+            curr['open'] > prev['high'] and
+            curr['close'] < (prev['open'] + prev['close']) / 2):
+            return True, 'bearish', 0.75
+        return False, 'none', 0
+
+
 class PatternPrecomputer:
-    """
-    کلاس محاسبه و ذخیره الگوها
-    """
+    """محاسبه و ذخیره الگوها"""
 
     def __init__(self, config: Dict[str, Any]):
-        """
-        Args:
-            config: تنظیمات از config.yaml
-        """
         self.config = config
         self.backtest_config = config.get('backtest', {})
 
-        # مسیر ذخیره فایل‌های precomputed
+        # مسیر خروجی
         self.output_dir = Path(__file__).parent / 'computed_data' / 'patterns'
         self.output_dir.mkdir(parents=True, exist_ok=True)
 
-        # مسیر اندیکاتورهای از پیش محاسبه شده
+        # مسیر اندیکاتورها
         self.indicators_dir = Path(__file__).parent / 'computed_data' / 'indicators'
 
-        # تایم‌فریم‌ها
+        # تایم‌فریم‌ها و سیمبل‌ها
         self.timeframes = config.get('data_fetching', {}).get('timeframes', ['5m', '15m', '1h', '4h'])
+        self.symbols = (
+            self.backtest_config.get('symbols') or
+            config.get('signal_processing', {}).get('symbols') or
+            ['BTC-USDT']
+        )
 
-        # سیمبل‌ها
-        self.symbols = self.backtest_config.get('symbols', ['BTCUSDT'])
-
-        # لودر داده‌ها
-        self.data_loader = CSVDataLoader(config)
-
-        # محاسبه‌گر اندیکاتورها (نیاز الگوها)
-        self.indicator_calculator = IndicatorCalculator(config)
-
-        # آنالایزر الگوها
-        self.pattern_analyzer = PatternAnalyzer(config)
+        # تشخیص‌دهنده الگو
+        self.detector = SimpleCandlePatternDetector()
 
         logger.info(f"PatternPrecomputer initialized")
         logger.info(f"  Symbols: {self.symbols}")
         logger.info(f"  Timeframes: {self.timeframes}")
-        logger.info(f"  Output dir: {self.output_dir}")
 
-    def load_indicators_or_compute(self, symbol: str, timeframe: str) -> Optional[pd.DataFrame]:
-        """
-        لود اندیکاتورهای از پیش محاسبه شده یا محاسبه جدید
+    def load_indicators(self, symbol: str, timeframe: str) -> Optional[pd.DataFrame]:
+        """لود اندیکاتورهای از پیش محاسبه شده"""
+        filepath = self.indicators_dir / symbol / f"{timeframe}_indicators.parquet"
+        if filepath.exists():
+            return pd.read_parquet(filepath)
+        return None
 
-        Args:
-            symbol: نماد
-            timeframe: تایم‌فریم
+    def detect_all_patterns(self, df: pd.DataFrame) -> pd.DataFrame:
+        """تشخیص همه الگوها برای هر کندل"""
+        n = len(df)
+        result = df.copy()
 
-        Returns:
-            DataFrame با اندیکاتورها
-        """
-        # اول سعی کن از فایل precomputed لود کنی
-        indicators_file = self.indicators_dir / symbol / f"{timeframe}_indicators.parquet"
-        if indicators_file.exists():
-            logger.info(f"    Loading pre-computed indicators from {indicators_file}")
-            return pd.read_parquet(indicators_file)
+        # ستون‌های الگو
+        pattern_names = [
+            'doji', 'hammer', 'shooting_star', 'engulfing',
+            'morning_star', 'evening_star', 'three_white_soldiers',
+            'three_black_crows', 'harami', 'piercing_line', 'dark_cloud_cover'
+        ]
 
-        # اگر نبود، محاسبه کن
-        logger.info(f"    Computing indicators (no pre-computed file found)")
-        df = self.data_loader.load_symbol_timeframe(symbol, timeframe)
+        for pname in pattern_names:
+            result[f'pattern_{pname}'] = 0
+            result[f'pattern_{pname}_direction'] = 'none'
+            result[f'pattern_{pname}_score'] = 0.0
 
-        if df is None or df.empty:
-            return None
+        # پیمایش کندل به کندل
+        for i in tqdm(range(3, n), desc="    Detecting patterns", unit="candle"):
+            curr = df.iloc[i]
+            prev = df.iloc[i-1]
+            prev2 = df.iloc[i-2]
 
-        context = AnalysisContext(
-            symbol=symbol,
-            timeframe=timeframe,
-            df=df.copy(),
-            config=self.config
-        )
+            # الگوهای تک کندلی
+            found, direction, score = self.detector.detect_doji(curr)
+            if found:
+                result.loc[result.index[i], 'pattern_doji'] = 1
+                result.loc[result.index[i], 'pattern_doji_direction'] = direction
+                result.loc[result.index[i], 'pattern_doji_score'] = score
 
-        self.indicator_calculator.calculate_all(context)
-        return context.df
+            found, direction, score = self.detector.detect_hammer(curr)
+            if found:
+                result.loc[result.index[i], 'pattern_hammer'] = 1
+                result.loc[result.index[i], 'pattern_hammer_direction'] = direction
+                result.loc[result.index[i], 'pattern_hammer_score'] = score
+
+            found, direction, score = self.detector.detect_shooting_star(curr)
+            if found:
+                result.loc[result.index[i], 'pattern_shooting_star'] = 1
+                result.loc[result.index[i], 'pattern_shooting_star_direction'] = direction
+                result.loc[result.index[i], 'pattern_shooting_star_score'] = score
+
+            # الگوهای دو کندلی
+            found, direction, score = self.detector.detect_engulfing(curr, prev)
+            if found:
+                result.loc[result.index[i], 'pattern_engulfing'] = 1
+                result.loc[result.index[i], 'pattern_engulfing_direction'] = direction
+                result.loc[result.index[i], 'pattern_engulfing_score'] = score
+
+            found, direction, score = self.detector.detect_harami(curr, prev)
+            if found:
+                result.loc[result.index[i], 'pattern_harami'] = 1
+                result.loc[result.index[i], 'pattern_harami_direction'] = direction
+                result.loc[result.index[i], 'pattern_harami_score'] = score
+
+            found, direction, score = self.detector.detect_piercing_line(curr, prev)
+            if found:
+                result.loc[result.index[i], 'pattern_piercing_line'] = 1
+                result.loc[result.index[i], 'pattern_piercing_line_direction'] = direction
+                result.loc[result.index[i], 'pattern_piercing_line_score'] = score
+
+            found, direction, score = self.detector.detect_dark_cloud_cover(curr, prev)
+            if found:
+                result.loc[result.index[i], 'pattern_dark_cloud_cover'] = 1
+                result.loc[result.index[i], 'pattern_dark_cloud_cover_direction'] = direction
+                result.loc[result.index[i], 'pattern_dark_cloud_cover_score'] = score
+
+            # الگوهای سه کندلی
+            found, direction, score = self.detector.detect_morning_star(prev2, prev, curr)
+            if found:
+                result.loc[result.index[i], 'pattern_morning_star'] = 1
+                result.loc[result.index[i], 'pattern_morning_star_direction'] = direction
+                result.loc[result.index[i], 'pattern_morning_star_score'] = score
+
+            found, direction, score = self.detector.detect_evening_star(prev2, prev, curr)
+            if found:
+                result.loc[result.index[i], 'pattern_evening_star'] = 1
+                result.loc[result.index[i], 'pattern_evening_star_direction'] = direction
+                result.loc[result.index[i], 'pattern_evening_star_score'] = score
+
+            found, direction, score = self.detector.detect_three_white_soldiers(prev2, prev, curr)
+            if found:
+                result.loc[result.index[i], 'pattern_three_white_soldiers'] = 1
+                result.loc[result.index[i], 'pattern_three_white_soldiers_direction'] = direction
+                result.loc[result.index[i], 'pattern_three_white_soldiers_score'] = score
+
+            found, direction, score = self.detector.detect_three_black_crows(prev2, prev, curr)
+            if found:
+                result.loc[result.index[i], 'pattern_three_black_crows'] = 1
+                result.loc[result.index[i], 'pattern_three_black_crows_direction'] = direction
+                result.loc[result.index[i], 'pattern_three_black_crows_score'] = score
+
+        return result
 
     def precompute_all(self) -> Dict[str, Dict[str, pd.DataFrame]]:
-        """
-        محاسبه الگوها برای همه سیمبل‌ها و تایم‌فریم‌ها
-
-        Returns:
-            Dict[symbol][timeframe] = DataFrame with pattern columns
-        """
+        """محاسبه الگوها برای همه سیمبل‌ها و تایم‌فریم‌ها"""
         results = {}
 
         for symbol in self.symbols:
             logger.info(f"\n{'='*60}")
-            logger.info(f"Processing symbol: {symbol}")
+            logger.info(f"Processing: {symbol}")
             logger.info(f"{'='*60}")
 
             results[symbol] = {}
 
             for tf in self.timeframes:
-                logger.info(f"\n  Processing timeframe: {tf}")
+                logger.info(f"\n  Timeframe: {tf}")
 
-                try:
-                    # 1. لود داده‌ها با اندیکاتورها
-                    df = self.load_indicators_or_compute(symbol, tf)
+                # لود داده با اندیکاتورها
+                df = self.load_indicators(symbol, tf)
+                if df is None or df.empty:
+                    logger.warning(f"    No indicator data for {symbol}/{tf}")
+                    continue
 
-                    if df is None or df.empty:
-                        logger.warning(f"    No data for {symbol}/{tf}")
-                        continue
+                logger.info(f"    Loaded {len(df)} candles")
 
-                    logger.info(f"    Loaded {len(df)} candles")
+                # تشخیص الگوها
+                df_with_patterns = self.detect_all_patterns(df)
+                results[symbol][tf] = df_with_patterns
 
-                    # 2. ساخت Context
-                    context = AnalysisContext(
-                        symbol=symbol,
-                        timeframe=tf,
-                        df=df.copy(),
-                        config=self.config
-                    )
-
-                    # 3. تشخیص همه الگوها (کندل به کندل)
-                    pattern_data = self._detect_patterns_for_all_candles(context)
-
-                    # 4. ذخیره نتیجه
-                    results[symbol][tf] = pattern_data
-
-                    # آمار
-                    pattern_cols = [c for c in pattern_data.columns if c.startswith('pattern_')]
-                    total_patterns = sum(pattern_data[col].sum() for col in pattern_cols)
-                    logger.info(f"    Found {total_patterns} pattern occurrences in {len(pattern_cols)} pattern types")
-
-                except Exception as e:
-                    logger.error(f"    Error processing {symbol}/{tf}: {e}", exc_info=True)
+                # آمار
+                pattern_cols = [c for c in df_with_patterns.columns
+                               if c.startswith('pattern_') and not c.endswith('_direction') and not c.endswith('_score')]
+                total = sum(df_with_patterns[col].sum() for col in pattern_cols)
+                logger.info(f"    Found {int(total)} patterns in {len(pattern_cols)} types")
 
         return results
 
-    def _detect_patterns_for_all_candles(self, context: AnalysisContext) -> pd.DataFrame:
-        """
-        تشخیص الگوها برای هر کندل
-
-        این متد به ازای هر کندل، الگوهایی که در آن نقطه وجود دارند را ثبت می‌کند.
-
-        Args:
-            context: کانتکست تحلیل
-
-        Returns:
-            DataFrame با ستون‌های الگو (هر ستون = یک الگو، مقدار = امتیاز الگو)
-        """
-        df = context.df.copy()
-        n_candles = len(df)
-
-        # دیکشنری برای ذخیره نتایج الگوها
-        pattern_results = {}
-
-        # لیست الگوها از pattern_analyzer
-        all_patterns = list(self.pattern_analyzer.orchestrator.all_patterns.keys())
-
-        # مقداردهی اولیه ستون‌های الگو
-        for pattern_name in all_patterns:
-            pattern_results[f'pattern_{pattern_name}'] = np.zeros(n_candles)
-            pattern_results[f'pattern_{pattern_name}_direction'] = ['none'] * n_candles
-            pattern_results[f'pattern_{pattern_name}_score'] = np.zeros(n_candles)
-
-        # پردازش کندل به کندل (با پنجره مناسب)
-        min_lookback = 50  # حداقل کندل برای تحلیل
-
-        for i in range(min_lookback, n_candles):
-            # ساخت DataFrame محدود تا کندل فعلی
-            df_window = df.iloc[:i+1].copy()
-
-            # ساخت context جدید با پنجره محدود
-            window_context = AnalysisContext(
-                symbol=context.symbol,
-                timeframe=context.timeframe,
-                df=df_window,
-                config=context.config
-            )
-
-            # تشخیص الگوها
-            try:
-                analysis_result = self.pattern_analyzer.analyze(window_context)
-
-                # ذخیره نتایج
-                if analysis_result and hasattr(analysis_result, 'patterns'):
-                    for pattern in analysis_result.patterns:
-                        pattern_name = pattern.get('name', pattern.get('pattern_name', 'unknown'))
-                        col_name = f'pattern_{pattern_name}'
-
-                        if col_name in pattern_results:
-                            pattern_results[col_name][i] = 1
-                            pattern_results[f'{col_name}_direction'][i] = pattern.get('direction', 'none')
-                            pattern_results[f'{col_name}_score'][i] = pattern.get('score', 0)
-
-            except Exception as e:
-                # ادامه بده حتی اگر خطا بود
-                pass
-
-            # نمایش پیشرفت
-            if (i + 1) % 1000 == 0:
-                logger.info(f"      Processed {i+1}/{n_candles} candles...")
-
-        # ساخت DataFrame نهایی
-        result_df = df.copy()
-        for col_name, values in pattern_results.items():
-            result_df[col_name] = values
-
-        return result_df
-
-    def save_results(self, results: Dict[str, Dict[str, pd.DataFrame]], format: str = 'parquet'):
-        """
-        ذخیره نتایج در فایل
-        """
-        for symbol, timeframes_data in results.items():
+    def save_results(self, results: Dict, format: str = 'parquet'):
+        """ذخیره نتایج"""
+        for symbol, tf_data in results.items():
             symbol_dir = self.output_dir / symbol
             symbol_dir.mkdir(parents=True, exist_ok=True)
 
-            for tf, df in timeframes_data.items():
+            for tf, df in tf_data.items():
                 if format == 'parquet':
                     filepath = symbol_dir / f"{tf}_patterns.parquet"
                     df.to_parquet(filepath)
-                elif format == 'pickle':
-                    filepath = symbol_dir / f"{tf}_patterns.pkl"
-                    df.to_pickle(filepath)
+                else:
+                    filepath = symbol_dir / f"{tf}_patterns.csv"
+                    df.to_csv(filepath)
 
-                logger.info(f"  Saved: {filepath} ({len(df)} rows)")
+                logger.info(f"  Saved: {filepath}")
 
-        # ذخیره metadata
+        # Metadata
         metadata = {
             'created_at': datetime.now().isoformat(),
             'symbols': list(results.keys()),
             'timeframes': self.timeframes,
-            'format': format,
+            'patterns': [
+                'doji', 'hammer', 'shooting_star', 'engulfing',
+                'morning_star', 'evening_star', 'three_white_soldiers',
+                'three_black_crows', 'harami', 'piercing_line', 'dark_cloud_cover'
+            ]
         }
 
-        metadata_path = self.output_dir / 'metadata.yaml'
-        with open(metadata_path, 'w') as f:
-            yaml.dump(metadata, f, default_flow_style=False, allow_unicode=True)
+        with open(self.output_dir / 'metadata.yaml', 'w') as f:
+            yaml.dump(metadata, f)
 
 
 def load_config(config_path: str) -> Dict:
-    """لود تنظیمات از فایل YAML"""
     with open(config_path, 'r') as f:
         return yaml.safe_load(f)
 
 
+def merge_configs(base_config: Dict, override_config: Dict) -> Dict:
+    """ترکیب دو config"""
+    result = base_config.copy()
+    for key, value in override_config.items():
+        if key in result and isinstance(result[key], dict) and isinstance(value, dict):
+            result[key] = merge_configs(result[key], value)
+        else:
+            result[key] = value
+    return result
+
+
 def main():
-    parser = argparse.ArgumentParser(description='Pre-compute patterns for backtest')
-    parser.add_argument('--config', type=str, default='config.yaml', help='Path to config file')
-    parser.add_argument('--format', type=str, default='parquet', choices=['parquet', 'pickle'],
-                       help='Output format')
+    parser = argparse.ArgumentParser(description='Pre-compute patterns')
+    parser.add_argument('--format', type=str, default='parquet', choices=['parquet', 'csv'])
     args = parser.parse_args()
 
     print("\n" + "="*70)
     print("  PATTERN PRE-COMPUTATION")
     print("="*70 + "\n")
 
-    # لود تنظیمات
-    config_path = Path(__file__).parent.parent / args.config
-    if not config_path.exists():
-        config_path = Path(__file__).parent / 'configs' / 'config.yaml'
+    # لود config از فولدر محلی
+    local_config_path = Path(__file__).parent / 'configs' / 'config.yaml'
+    local_backtest_config_path = Path(__file__).parent / 'configs' / 'config_backtest_v2.yaml'
 
-    logger.info(f"Loading config from: {config_path}")
-    config = load_config(config_path)
+    logger.info(f"Loading local config: {local_config_path}")
+    config = load_config(local_config_path)
 
-    # ساخت precomputer و اجرا
+    if local_backtest_config_path.exists():
+        logger.info(f"Loading local backtest config: {local_backtest_config_path}")
+        backtest_config = load_config(local_backtest_config_path)
+        config = merge_configs(config, backtest_config)
+
+    # اجرا
     precomputer = PatternPrecomputer(config)
-
-    # محاسبه الگوها
     results = precomputer.precompute_all()
-
-    # ذخیره نتایج
     precomputer.save_results(results, format=args.format)
 
     print("\n" + "="*70)

@@ -524,17 +524,15 @@ def main():
     print("  Using Pre-computed Indicators & Patterns")
     print("="*70 + "\n")
 
-    # لود تنظیمات
-    config_path = Path(__file__).parent.parent / args.config
-    if not config_path.exists():
-        config_path = Path(__file__).parent / 'configs' / 'config.yaml'
+    # لود config از فولدر محلی (precomputed_backtest/configs/)
+    local_config_path = Path(__file__).parent / 'configs' / 'config.yaml'
+    local_backtest_config_path = Path(__file__).parent / 'configs' / 'config_backtest_v2.yaml'
 
-    config = load_config(config_path)
+    config = load_config(local_config_path)
 
-    # لود و merge backtest config
-    backtest_config_path = Path(__file__).parent.parent / 'backtest' / 'config_backtest_v2.yaml'
-    if backtest_config_path.exists():
-        backtest_config = load_config(backtest_config_path)
+    # لود backtest config و merge
+    if local_backtest_config_path.exists():
+        backtest_config = load_config(local_backtest_config_path)
         config = merge_configs(config, backtest_config)
 
     # اجرای بکتست
