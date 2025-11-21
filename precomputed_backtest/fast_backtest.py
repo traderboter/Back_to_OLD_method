@@ -195,12 +195,14 @@ class FastBacktestEngine:
         self.results = {
             'trades': [],
             'equity_curve': [],
-            'statistics': {}
+            'statistics': {},
+            'per_symbol': {}  # آمار هر سیمبل جداگانه
         }
 
         logger.info(f"FastBacktestEngine initialized")
         logger.info(f"  Symbols: {self.symbols}")
         logger.info(f"  Initial balance: {self.initial_balance}")
+        logger.info(f"  Trailing Stop: {'Enabled' if self.trailing_stop_enabled else 'Disabled'}")
 
     def run(self) -> Dict:
         """اجرای بکتست سریع"""
@@ -285,6 +287,22 @@ class FastBacktestEngine:
             })
 
         pbar.close()
+
+        # ثبت آمار این سیمبل
+        symbol_trades = [t for t in self.closed_trades if t.symbol == symbol]
+        if symbol_trades:
+            symbol_wins = [t for t in symbol_trades if t.pnl > 0]
+            symbol_losses = [t for t in symbol_trades if t.pnl <= 0]
+            self.results['per_symbol'][symbol] = {
+                'total_trades': len(symbol_trades),
+                'winning_trades': len(symbol_wins),
+                'losing_trades': len(symbol_losses),
+                'win_rate': (len(symbol_wins) / len(symbol_trades)) * 100,
+                'total_pnl': sum(t.pnl for t in symbol_trades),
+                'avg_pnl': sum(t.pnl for t in symbol_trades) / len(symbol_trades),
+                'trailing_sl_count': len([t for t in symbol_trades if t.exit_reason == 'trailing_sl']),
+            }
+            logger.info(f"  {symbol}: {len(symbol_trades)} trades, {self.results['per_symbol'][symbol]['win_rate']:.1f}% win rate")
 
     def _check_signal(self, df_signal: pd.DataFrame, current_time: datetime, symbol: str) -> Optional[Dict]:
         """
@@ -982,6 +1000,13 @@ def main():
     print(f"  Commission: {stats.get('commission_rate', 0):.2f}% per trade")
     print(f"  Slippage: {stats.get('slippage_rate', 0):.3f}% per trade")
     print(f"  Total Commission Paid: {stats.get('total_commission', 0):.2f} USDT")
+
+    # آمار هر سیمبل
+    per_symbol = results.get('per_symbol', {})
+    if len(per_symbol) > 1:
+        print(f"\n  --- Per Symbol Stats ---")
+        for sym, sym_stats in per_symbol.items():
+            print(f"  {sym}: {sym_stats['total_trades']} trades, {sym_stats['win_rate']:.1f}% win, PnL: {sym_stats['total_pnl']:.2f}")
 
     # ذخیره گزارش‌ها
     print("\n  Saving reports...")
