@@ -158,6 +158,15 @@ class FastBacktestEngine:
         self.risk_per_trade = config.get('risk_management', {}).get('risk_per_trade', 0.02)
         self.min_signal_score = 30  # آستانه پایین‌تر برای تولید سیگنال بیشتر
 
+        # تنظیمات واقعی‌تر
+        self.commission_rate = self.backtest_config.get('commission_rate', 0.001)  # 0.1% کمیسیون
+        self.slippage_rate = self.backtest_config.get('slippage_rate', 0.0005)  # 0.05% slippage
+
+        # tracking برای drawdown دقیق
+        self.peak_equity = self.initial_balance
+        self.max_drawdown = 0.0
+        self.drawdown_history = []
+
         # استراتژی ensemble
         self.strategy_ensemble = StrategyEnsemble({
             'voting_threshold': 0.5,
@@ -238,12 +247,26 @@ class FastBacktestEngine:
                 if signal:
                     self._open_trade(signal, current_row, current_time, symbol)
 
-            # 3. ثبت equity
-            if i % 100 == 0:
-                self.results['equity_curve'].append({
-                    'time': str(current_time),
-                    'equity': self._calculate_equity(current_row)
-                })
+            # 3. ثبت equity و محاسبه drawdown (هر 10 کندل برای دقت بیشتر)
+            if i % 10 == 0:
+                current_equity = self._calculate_equity(current_row)
+
+                # به‌روزرسانی peak و drawdown
+                if current_equity > self.peak_equity:
+                    self.peak_equity = current_equity
+
+                if self.peak_equity > 0:
+                    current_drawdown = (self.peak_equity - current_equity) / self.peak_equity * 100
+                    if current_drawdown > self.max_drawdown:
+                        self.max_drawdown = current_drawdown
+
+                # ثبت در equity curve (هر 50 کندل برای کاهش حجم داده)
+                if i % 50 == 0:
+                    self.results['equity_curve'].append({
+                        'time': str(current_time),
+                        'equity': current_equity,
+                        'drawdown': current_drawdown if self.peak_equity > 0 else 0
+                    })
 
             pbar.update(1)
             pbar.set_postfix({
@@ -405,7 +428,14 @@ class FastBacktestEngine:
         if len(self.open_trades) >= 3:  # حداکثر 3 معامله همزمان
             return
 
-        entry_price = current_row['close']
+        base_price = current_row['close']
+
+        # اعمال slippage (قیمت بدتر برای ورود)
+        if signal['direction'] == TradeDirection.LONG:
+            entry_price = base_price * (1 + self.slippage_rate)  # خرید با قیمت بالاتر
+        else:
+            entry_price = base_price * (1 - self.slippage_rate)  # فروش با قیمت پایین‌تر
+
         atr = current_row.get('atr', entry_price * 0.02)
 
         # اگر ATR نامعتبر بود
@@ -491,15 +521,31 @@ class FastBacktestEngine:
 
             if exit_price:
                 trade.exit_time = current_time
-                trade.exit_price = exit_price
+
+                # اعمال slippage بر قیمت خروج (قیمت بدتر)
+                if trade.direction == TradeDirection.LONG:
+                    # برای LONG، فروش با قیمت پایین‌تر
+                    actual_exit_price = exit_price * (1 - self.slippage_rate)
+                else:
+                    # برای SHORT، خرید با قیمت بالاتر
+                    actual_exit_price = exit_price * (1 + self.slippage_rate)
+
+                trade.exit_price = actual_exit_price
                 trade.exit_reason = exit_reason
 
-                # محاسبه PnL
+                # محاسبه PnL خام
                 if trade.direction == TradeDirection.LONG:
-                    trade.pnl = (exit_price - trade.entry_price) * trade.quantity
+                    gross_pnl = (actual_exit_price - trade.entry_price) * trade.quantity
                 else:
-                    trade.pnl = (trade.entry_price - exit_price) * trade.quantity
+                    gross_pnl = (trade.entry_price - actual_exit_price) * trade.quantity
 
+                # محاسبه کمیسیون (برای ورود و خروج)
+                entry_commission = trade.entry_price * trade.quantity * self.commission_rate
+                exit_commission = actual_exit_price * trade.quantity * self.commission_rate
+                total_commission = entry_commission + exit_commission
+
+                # PnL خالص (بعد از کسر کمیسیون)
+                trade.pnl = gross_pnl - total_commission
                 trade.pnl_percent = (trade.pnl / (trade.entry_price * trade.quantity)) * 100
 
                 self.balance += trade.pnl
@@ -544,17 +590,14 @@ class FastBacktestEngine:
         # Profit Factor
         profit_factor = gross_profit / gross_loss if gross_loss > 0 else float('inf')
 
-        # Max Drawdown
-        equity_curve = self.results.get('equity_curve', [])
-        max_drawdown = 0
-        peak = self.initial_balance
-        for point in equity_curve:
-            equity = point['equity']
-            if equity > peak:
-                peak = equity
-            drawdown = (peak - equity) / peak * 100
-            if drawdown > max_drawdown:
-                max_drawdown = drawdown
+        # استفاده از max_drawdown ردیابی شده (دقیق‌تر)
+        max_drawdown = self.max_drawdown
+
+        # محاسبه کل کمیسیون پرداخت شده
+        total_commission = sum(
+            (t.entry_price * t.quantity * self.commission_rate * 2)  # ورود + خروج
+            for t in self.closed_trades
+        )
 
         self.results['statistics'] = {
             'total_trades': len(self.closed_trades),
@@ -570,6 +613,9 @@ class FastBacktestEngine:
             'max_drawdown': max_drawdown,
             'gross_profit': gross_profit,
             'gross_loss': gross_loss,
+            'total_commission': total_commission,
+            'commission_rate': self.commission_rate * 100,  # درصد
+            'slippage_rate': self.slippage_rate * 100,  # درصد
         }
 
         # ذخیره معاملات
@@ -882,6 +928,10 @@ def main():
     print(f"  Profit Factor: {stats.get('profit_factor', 0):.2f}")
     print(f"  Max Drawdown: {stats.get('max_drawdown', 0):.2f}%")
     print(f"  Duration: {results['duration']}")
+    print(f"\n  --- Realistic Costs ---")
+    print(f"  Commission: {stats.get('commission_rate', 0):.2f}% per trade")
+    print(f"  Slippage: {stats.get('slippage_rate', 0):.3f}% per trade")
+    print(f"  Total Commission Paid: {stats.get('total_commission', 0):.2f} USDT")
 
     # ذخیره گزارش‌ها
     print("\n  Saving reports...")
