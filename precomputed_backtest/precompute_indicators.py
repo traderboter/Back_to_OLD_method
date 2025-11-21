@@ -109,6 +109,81 @@ class SimpleIndicatorCalculator:
         adx = dx.rolling(window=period).mean()
         return adx
 
+    @staticmethod
+    def ichimoku(high: pd.Series, low: pd.Series, close: pd.Series,
+                 tenkan: int = 9, kijun: int = 26, senkou_b: int = 52):
+        """
+        Ichimoku Cloud
+        Returns: tenkan_sen, kijun_sen, senkou_span_a, senkou_span_b, chikou_span
+        """
+        # Tenkan-sen (Conversion Line)
+        tenkan_high = high.rolling(window=tenkan).max()
+        tenkan_low = low.rolling(window=tenkan).min()
+        tenkan_sen = (tenkan_high + tenkan_low) / 2
+
+        # Kijun-sen (Base Line)
+        kijun_high = high.rolling(window=kijun).max()
+        kijun_low = low.rolling(window=kijun).min()
+        kijun_sen = (kijun_high + kijun_low) / 2
+
+        # Senkou Span A (Leading Span A) - shifted 26 periods ahead
+        senkou_span_a = ((tenkan_sen + kijun_sen) / 2).shift(kijun)
+
+        # Senkou Span B (Leading Span B) - shifted 26 periods ahead
+        senkou_b_high = high.rolling(window=senkou_b).max()
+        senkou_b_low = low.rolling(window=senkou_b).min()
+        senkou_span_b = ((senkou_b_high + senkou_b_low) / 2).shift(kijun)
+
+        # Chikou Span (Lagging Span) - shifted 26 periods back
+        chikou_span = close.shift(-kijun)
+
+        return tenkan_sen, kijun_sen, senkou_span_a, senkou_span_b, chikou_span
+
+    @staticmethod
+    def vwap(high: pd.Series, low: pd.Series, close: pd.Series, volume: pd.Series) -> pd.Series:
+        """Volume Weighted Average Price"""
+        typical_price = (high + low + close) / 3
+        vwap = (typical_price * volume).cumsum() / volume.cumsum()
+        return vwap
+
+    @staticmethod
+    def pivot_points(high: pd.Series, low: pd.Series, close: pd.Series):
+        """
+        Pivot Points (Standard)
+        Returns: pivot, r1, s1, r2, s2, r3, s3
+        """
+        # استفاده از کندل قبلی برای محاسبه pivot
+        prev_high = high.shift(1)
+        prev_low = low.shift(1)
+        prev_close = close.shift(1)
+
+        pivot = (prev_high + prev_low + prev_close) / 3
+        r1 = (2 * pivot) - prev_low
+        s1 = (2 * pivot) - prev_high
+        r2 = pivot + (prev_high - prev_low)
+        s2 = pivot - (prev_high - prev_low)
+        r3 = prev_high + 2 * (pivot - prev_low)
+        s3 = prev_low - 2 * (prev_high - pivot)
+
+        return pivot, r1, s1, r2, s2, r3, s3
+
+    @staticmethod
+    def williams_r(high: pd.Series, low: pd.Series, close: pd.Series, period: int = 14) -> pd.Series:
+        """Williams %R"""
+        highest_high = high.rolling(window=period).max()
+        lowest_low = low.rolling(window=period).min()
+        wr = -100 * (highest_high - close) / (highest_high - lowest_low)
+        return wr
+
+    @staticmethod
+    def cci(high: pd.Series, low: pd.Series, close: pd.Series, period: int = 20) -> pd.Series:
+        """Commodity Channel Index"""
+        typical_price = (high + low + close) / 3
+        sma = typical_price.rolling(window=period).mean()
+        mean_deviation = typical_price.rolling(window=period).apply(lambda x: np.abs(x - x.mean()).mean())
+        cci = (typical_price - sma) / (0.015 * mean_deviation)
+        return cci
+
 
 class SimpleCSVLoader:
     """لودر ساده CSV"""
@@ -234,6 +309,44 @@ class IndicatorPrecomputer:
         # ADX
         result['adx'] = self.calculator.adx(result['high'], result['low'], result['close'], 14)
 
+        # Ichimoku Cloud
+        tenkan, kijun, senkou_a, senkou_b, chikou = self.calculator.ichimoku(
+            result['high'], result['low'], result['close']
+        )
+        result['ichimoku_tenkan'] = tenkan
+        result['ichimoku_kijun'] = kijun
+        result['ichimoku_senkou_a'] = senkou_a
+        result['ichimoku_senkou_b'] = senkou_b
+        result['ichimoku_chikou'] = chikou
+
+        # VWAP
+        if 'volume' in result.columns:
+            result['vwap'] = self.calculator.vwap(
+                result['high'], result['low'], result['close'], result['volume']
+            )
+
+        # Pivot Points
+        pivot, r1, s1, r2, s2, r3, s3 = self.calculator.pivot_points(
+            result['high'], result['low'], result['close']
+        )
+        result['pivot'] = pivot
+        result['pivot_r1'] = r1
+        result['pivot_s1'] = s1
+        result['pivot_r2'] = r2
+        result['pivot_s2'] = s2
+        result['pivot_r3'] = r3
+        result['pivot_s3'] = s3
+
+        # Williams %R
+        result['williams_r'] = self.calculator.williams_r(
+            result['high'], result['low'], result['close'], 14
+        )
+
+        # CCI
+        result['cci'] = self.calculator.cci(
+            result['high'], result['low'], result['close'], 20
+        )
+
         return result
 
     def precompute_all(self) -> Dict[str, Dict[str, pd.DataFrame]]:
@@ -297,7 +410,12 @@ class IndicatorPrecomputer:
                 'sma_20', 'sma_50', 'sma_200',
                 'rsi', 'macd', 'macd_signal', 'macd_hist',
                 'atr', 'bb_upper', 'bb_mid', 'bb_lower',
-                'stoch_k', 'stoch_d', 'obv', 'adx'
+                'stoch_k', 'stoch_d', 'obv', 'adx',
+                'ichimoku_tenkan', 'ichimoku_kijun', 'ichimoku_senkou_a',
+                'ichimoku_senkou_b', 'ichimoku_chikou',
+                'vwap', 'pivot', 'pivot_r1', 'pivot_s1', 'pivot_r2',
+                'pivot_s2', 'pivot_r3', 'pivot_s3',
+                'williams_r', 'cci'
             ]
         }
 

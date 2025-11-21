@@ -23,11 +23,13 @@
 ## اولویت متوسط
 
 ### 4. اضافه کردن اندیکاتورهای بیشتر
-- [ ] Ichimoku Cloud
+- [x] Ichimoku Cloud ✓
 - [ ] Fibonacci Retracement
 - [ ] Volume Profile
-- [ ] VWAP
-- [ ] Pivot Points
+- [x] VWAP ✓
+- [x] Pivot Points ✓
+- [x] Williams %R ✓
+- [x] CCI (Commodity Channel Index) ✓
 
 ### 5. اضافه کردن الگوهای بیشتر
 - [ ] Double Top / Double Bottom
