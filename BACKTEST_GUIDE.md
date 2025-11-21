@@ -41,17 +41,14 @@ python run_backtest.py quick
 
 ```python
 import asyncio
-from backtest.backtest_engine_v2 import run_backtest_from_config
+from backtest.backtest_engine_v2 import run_backtest_v2
 
 # اجرای backtest
-engine, results_dir = await run_backtest_from_config(
-    config_path='backtest/config_backtest.yaml',
-    main_config_path='config.yaml',
+engine = await run_backtest_v2(
     scoring_method='new'  # استفاده از NEW SYSTEM
 )
 
 # مشاهده نتایج
-print(f"Results saved to: {results_dir}")
 print(f"Total trades: {engine.results['statistics']['total_trades']}")
 print(f"Win rate: {engine.results['statistics']['win_rate']:.1f}%")
 ```
@@ -61,18 +58,14 @@ print(f"Win rate: {engine.results['statistics']['win_rate']:.1f}%")
 ```python
 # در یک Jupyter cell
 import asyncio
-from backtest.backtest_engine_v2 import run_backtest_from_config
+from backtest.backtest_engine_v2 import run_backtest_v2
 
 async def run_backtest():
-    engine, results_dir = await run_backtest_from_config(
-        config_path='backtest/config_backtest.yaml',
-        main_config_path='config.yaml',
-        scoring_method='new'
-    )
-    return engine, results_dir
+    engine = await run_backtest_v2(scoring_method='new')
+    return engine
 
 # اجرا
-engine, results_dir = await run_backtest()
+engine = await run_backtest()
 ```
 
 ---
