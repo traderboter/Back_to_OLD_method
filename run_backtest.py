@@ -21,30 +21,25 @@ async def run_simple_backtest():
     """
     اجرای یک backtest ساده برای تست NEW SYSTEM
     """
-    from backtest.backtest_engine_v2 import run_backtest_from_config
+    from backtest.backtest_engine_v2 import run_backtest_v2
 
     print("\n" + "="*70)
     print("🚀 Starting Backtest with NEW SYSTEM")
     print("="*70 + "\n")
 
     try:
-        # پارامترهای backtest
-        config_path = 'backtest/config_backtest.yaml'  # فایل config backtest
-        main_config_path = 'config.yaml'  # فایل config اصلی
-        scoring_method = 'new'  # استفاده از NEW SYSTEM scoring
-
-        # اجرای backtest
-        engine, results_dir = await run_backtest_from_config(
-            config_path=config_path,
-            main_config_path=main_config_path,
-            scoring_method=scoring_method
+        # اجرای backtest با تنظیمات پیش‌فرض
+        # config_path: backtest/config_backtest_v2.yaml
+        # main_config_path: config.yaml
+        # scoring_method: 'new' (NEW SYSTEM)
+        engine = await run_backtest_v2(
+            scoring_method='new'  # استفاده از NEW SYSTEM scoring
         )
 
         print("\n" + "="*70)
         print("✅ Backtest Completed Successfully!")
         print("="*70)
-        print(f"\n📂 Results saved to: {results_dir}")
-        print(f"📊 Total trades: {engine.results['statistics']['total_trades']}")
+        print(f"\n📊 Total trades: {engine.results['statistics']['total_trades']}")
         print(f"💰 Final equity: {engine.results['statistics']['current_equity']:.2f} USDT")
         print(f"📈 Total return: {engine.results['statistics']['total_return']:.2f}%")
         print(f"✅ Win rate: {engine.results['statistics']['win_rate']:.1f}%")
@@ -61,12 +56,12 @@ async def run_simple_backtest():
 
         print("\n" + "="*70 + "\n")
 
-        return engine, results_dir
+        return engine
 
     except FileNotFoundError as e:
         logger.error(f"❌ Config file not found: {e}")
         logger.error("💡 Make sure you have:")
-        logger.error("   - backtest/config_backtest.yaml")
+        logger.error("   - backtest/config_backtest_v2.yaml")
         logger.error("   - config.yaml")
         logger.error("   - backtest/config_scoring_new.yaml")
         raise
