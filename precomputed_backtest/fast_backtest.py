@@ -396,6 +396,10 @@ class FastBacktestEngine:
         entry_price = current_row['close']
         atr = current_row.get('atr', entry_price * 0.02)
 
+        # اگر ATR نامعتبر بود
+        if pd.isna(atr) or atr <= 0:
+            atr = entry_price * 0.02
+
         # محاسبه SL و TP
         if signal['direction'] == TradeDirection.LONG:
             sl_price = entry_price - (atr * 2)
@@ -404,10 +408,25 @@ class FastBacktestEngine:
             sl_price = entry_price + (atr * 2)
             tp_price = entry_price - (atr * 3)
 
-        # محاسبه حجم
-        risk_amount = self.balance * self.risk_per_trade
+        # محاسبه حجم با محدودیت‌های واقعی
+        risk_amount = self.balance * self.risk_per_trade  # 2% risk
         sl_distance = abs(entry_price - sl_price)
-        quantity = risk_amount / sl_distance if sl_distance > 0 else 0
+
+        if sl_distance <= 0:
+            return
+
+        # حجم بر اساس ریسک
+        quantity = risk_amount / sl_distance
+
+        # محدودیت حداکثر حجم معامله (10% از بالانس)
+        max_position_value = self.balance * 0.10
+        max_quantity = max_position_value / entry_price
+        quantity = min(quantity, max_quantity)
+
+        # حداقل حجم معامله
+        min_quantity = 0.001  # برای BTC
+        if quantity < min_quantity:
+            return
 
         self.trade_counter += 1
 
