@@ -29,8 +29,9 @@ from enum import Enum
 # Add parent directory to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-# Import strategies
+# Import strategies and scorer
 from strategies import StrategyEnsemble, SignalDirection
+from fast_scorer import FastScorer, ScoringMethod
 
 logging.basicConfig(
     level=logging.INFO,
@@ -177,12 +178,24 @@ class FastBacktestEngine:
         self.max_drawdown = 0.0
         self.drawdown_history = []
 
-        # استراتژی ensemble
-        self.strategy_ensemble = StrategyEnsemble({
-            'voting_threshold': 0.5,
-            'min_agreement': 2,
-            'min_score': self.min_signal_score
-        })
+        # === روش امتیازدهی: new, old, hybrid, strategy ===
+        self.scoring_method = self.backtest_config.get('scoring_method', 'strategy')
+
+        if self.scoring_method in ['new', 'old', 'hybrid']:
+            # استفاده از FastScorer (سه روش امتیازدهی)
+            self.fast_scorer = FastScorer(method=self.scoring_method, config=config)
+            self.min_signal_score = self.fast_scorer.min_signal_score
+            self.use_strategy_ensemble = False
+            logger.info(f"Using FastScorer with method: {self.scoring_method}")
+        else:
+            # استفاده از StrategyEnsemble (روش قبلی)
+            self.strategy_ensemble = StrategyEnsemble({
+                'voting_threshold': 0.5,
+                'min_agreement': 2,
+                'min_score': self.min_signal_score
+            })
+            self.use_strategy_ensemble = True
+            logger.info("Using StrategyEnsemble for signal generation")
 
         # وضعیت
         self.balance = self.initial_balance
@@ -202,6 +215,8 @@ class FastBacktestEngine:
         logger.info(f"FastBacktestEngine initialized")
         logger.info(f"  Symbols: {self.symbols}")
         logger.info(f"  Initial balance: {self.initial_balance}")
+        logger.info(f"  Scoring method: {self.scoring_method}")
+        logger.info(f"  Min signal score: {self.min_signal_score}")
         logger.info(f"  Trailing Stop: {'Enabled' if self.trailing_stop_enabled else 'Disabled'}")
 
     def run(self) -> Dict:
@@ -306,9 +321,11 @@ class FastBacktestEngine:
 
     def _check_signal(self, df_signal: pd.DataFrame, current_time: datetime, symbol: str) -> Optional[Dict]:
         """
-        بررسی وجود سیگنال در زمان فعلی با استفاده از استراتژی‌های حرفه‌ای
+        بررسی وجود سیگنال در زمان فعلی
 
-        این متد از StrategyEnsemble برای تحلیل استفاده می‌کند.
+        بر اساس scoring_method از یکی از دو روش استفاده می‌شود:
+        - strategy: استفاده از StrategyEnsemble
+        - new/old/hybrid: استفاده از FastScorer
         """
         # پیدا کردن نزدیک‌ترین کندل signal timeframe
         try:
@@ -321,19 +338,39 @@ class FastBacktestEngine:
         except:
             return None
 
-        # استفاده از StrategyEnsemble برای تحلیل
-        direction, score, reason, details = self.strategy_ensemble.analyze(row)
+        if self.use_strategy_ensemble:
+            # === روش Strategy Ensemble ===
+            direction, score, reason, details = self.strategy_ensemble.analyze(row)
 
-        if direction is None or score < self.min_signal_score:
-            return None
+            if direction is None or score < self.min_signal_score:
+                return None
 
-        # تبدیل جهت به TradeDirection
-        if direction == SignalDirection.LONG:
-            trade_direction = TradeDirection.LONG
-        elif direction == SignalDirection.SHORT:
-            trade_direction = TradeDirection.SHORT
+            if direction == SignalDirection.LONG:
+                trade_direction = TradeDirection.LONG
+            elif direction == SignalDirection.SHORT:
+                trade_direction = TradeDirection.SHORT
+            else:
+                return None
+
+            strategies = details.get('long_strategies', []) if direction == SignalDirection.LONG else details.get('short_strategies', [])
+
         else:
-            return None
+            # === روش FastScorer (NEW/OLD/HYBRID) ===
+            # ابتدا جهت را تعیین می‌کنیم
+            direction = self._determine_direction_for_scorer(row)
+            if direction is None:
+                return None
+
+            # محاسبه امتیاز با FastScorer
+            score_result = self.fast_scorer.calculate_score(row, direction)
+            score = score_result.final_score
+
+            if not self.fast_scorer.is_valid_signal(score):
+                return None
+
+            trade_direction = TradeDirection.LONG if direction == 'LONG' else TradeDirection.SHORT
+            reason = f"{self.scoring_method.upper()} Score: {score:.1f}"
+            strategies = [self.scoring_method]
 
         # جمع‌آوری الگوهای پیدا شده
         patterns_found = []
@@ -348,8 +385,71 @@ class FastBacktestEngine:
             'patterns': patterns_found,
             'indicators': self._get_indicators_snapshot(row),
             'reason': reason,
-            'strategies': details.get('long_strategies', []) if direction == SignalDirection.LONG else details.get('short_strategies', [])
+            'strategies': strategies
         }
+
+    def _determine_direction_for_scorer(self, row: pd.Series) -> Optional[str]:
+        """
+        تعیین جهت سیگنال برای FastScorer
+
+        این متد بر اساس اندیکاتورها جهت سیگنال را تعیین می‌کند.
+        """
+        bullish_score = 0
+        bearish_score = 0
+
+        # 1. RSI
+        rsi = row.get('rsi', 50)
+        if pd.notna(rsi):
+            if rsi < 35:
+                bullish_score += 2  # Oversold
+            elif rsi < 45:
+                bullish_score += 1
+            elif rsi > 65:
+                bearish_score += 2  # Overbought
+            elif rsi > 55:
+                bearish_score += 1
+
+        # 2. MACD
+        macd = row.get('macd', 0)
+        macd_signal = row.get('macd_signal', 0)
+        if pd.notna(macd) and pd.notna(macd_signal):
+            if macd > macd_signal:
+                bullish_score += 1
+            elif macd < macd_signal:
+                bearish_score += 1
+
+        # 3. EMA Trend
+        close = row.get('close', 0)
+        ema_20 = row.get('ema_20', 0)
+        ema_50 = row.get('ema_50', 0)
+        if pd.notna(close) and pd.notna(ema_20) and pd.notna(ema_50):
+            if close > ema_20 > ema_50:
+                bullish_score += 2
+            elif close > ema_20:
+                bullish_score += 1
+            elif close < ema_20 < ema_50:
+                bearish_score += 2
+            elif close < ema_20:
+                bearish_score += 1
+
+        # 4. Patterns
+        bullish_patterns = ['pattern_hammer', 'pattern_morning_star', 'pattern_bullish_engulfing', 'pattern_piercing_line']
+        bearish_patterns = ['pattern_shooting_star', 'pattern_evening_star', 'pattern_bearish_engulfing', 'pattern_dark_cloud_cover']
+
+        for p in bullish_patterns:
+            if p in row and row[p] == 1:
+                bullish_score += 2
+        for p in bearish_patterns:
+            if p in row and row[p] == 1:
+                bearish_score += 2
+
+        # تصمیم نهایی
+        if bullish_score > bearish_score and bullish_score >= 3:
+            return 'LONG'
+        elif bearish_score > bullish_score and bearish_score >= 3:
+            return 'SHORT'
+
+        return None
 
     def _calculate_signal_score(self, row: pd.Series, patterns: List[str]) -> float:
         """محاسبه امتیاز سیگنال"""
@@ -668,6 +768,7 @@ class FastBacktestEngine:
         )
 
         self.results['statistics'] = {
+            'scoring_method': self.scoring_method,
             'total_trades': len(self.closed_trades),
             'winning_trades': len(wins),
             'losing_trades': len(losses),
@@ -961,11 +1062,15 @@ def merge_configs(base_config: Dict, override_config: Dict) -> Dict:
 def main():
     parser = argparse.ArgumentParser(description='Fast Backtest using pre-computed data')
     parser.add_argument('--config', type=str, default='config.yaml', help='Path to config file')
+    parser.add_argument('--method', type=str, default=None,
+                        choices=['new', 'old', 'hybrid', 'strategy'],
+                        help='Scoring method: new (8 multipliers, capped), old (13 multipliers, unlimited), hybrid (mix), strategy (ensemble)')
     args = parser.parse_args()
 
     print("\n" + "="*70)
     print("  FAST BACKTEST ENGINE")
     print("  Using Pre-computed Indicators & Patterns")
+    print("  Scoring Methods: new | old | hybrid | strategy")
     print("="*70 + "\n")
 
     # لود config از فولدر محلی (precomputed_backtest/configs/)
@@ -979,6 +1084,13 @@ def main():
         backtest_config = load_config(local_backtest_config_path)
         config = merge_configs(config, backtest_config)
 
+    # Override scoring method از command line
+    if args.method:
+        if 'backtest' not in config:
+            config['backtest'] = {}
+        config['backtest']['scoring_method'] = args.method
+        print(f"  Scoring method: {args.method} (from command line)")
+
     # اجرای بکتست
     engine = FastBacktestEngine(config)
     results = engine.run()
@@ -988,7 +1100,8 @@ def main():
     print("  BACKTEST RESULTS")
     print("="*70)
     stats = results['statistics']
-    print(f"\n  Total Trades: {stats['total_trades']}")
+    print(f"\n  Scoring Method: {stats.get('scoring_method', 'strategy').upper()}")
+    print(f"  Total Trades: {stats['total_trades']}")
     print(f"  Winning: {stats.get('winning_trades', 0)} | Losing: {stats.get('losing_trades', 0)}")
     print(f"  Win Rate: {stats['win_rate']:.1f}%")
     print(f"  Total Return: {stats['total_return']:.2f}%")
