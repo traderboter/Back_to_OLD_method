@@ -151,7 +151,7 @@ class FastBacktestEngine:
 
         # تنظیمات معامله
         self.risk_per_trade = config.get('risk_management', {}).get('risk_per_trade', 0.02)
-        self.min_signal_score = config.get('signal_processing', {}).get('min_score_threshold', 60)
+        self.min_signal_score = 30  # آستانه پایین‌تر برای تولید سیگنال بیشتر
 
         # وضعیت
         self.balance = self.initial_balance
@@ -292,47 +292,87 @@ class FastBacktestEngine:
         """محاسبه امتیاز سیگنال"""
         score = 0.0
 
-        # امتیاز الگوها
-        score += len(patterns) * 15
+        # امتیاز الگوها - هر الگو 20 امتیاز
+        score += len(patterns) * 20
 
         # امتیاز RSI
-        if 'rsi' in row:
+        if 'rsi' in row and pd.notna(row['rsi']):
             rsi = row['rsi']
-            if rsi < 30 or rsi > 70:
-                score += 10
+            if rsi < 30:
+                score += 15  # oversold - bullish
+            elif rsi > 70:
+                score += 15  # overbought - bearish
+            elif 40 < rsi < 60:
+                score += 5   # neutral zone
 
         # امتیاز MACD
         if 'macd' in row and 'macd_signal' in row:
-            if row['macd'] > row['macd_signal']:
-                score += 5
+            if pd.notna(row['macd']) and pd.notna(row['macd_signal']):
+                if abs(row['macd'] - row['macd_signal']) > 0:
+                    score += 10
 
-        # امتیاز روند
-        if 'ema_20' in row and 'ema_50' in row:
-            if row['close'] > row['ema_20'] > row['ema_50']:
-                score += 10
-            elif row['close'] < row['ema_20'] < row['ema_50']:
-                score += 10
+        # امتیاز روند (EMA alignment)
+        if 'ema_20' in row and 'ema_50' in row and 'close' in row:
+            if pd.notna(row['ema_20']) and pd.notna(row['ema_50']):
+                if row['close'] > row['ema_20'] > row['ema_50']:
+                    score += 15  # uptrend
+                elif row['close'] < row['ema_20'] < row['ema_50']:
+                    score += 15  # downtrend
 
         return min(score, 100)
 
     def _determine_direction(self, row: pd.Series, patterns: List[str]) -> Optional[TradeDirection]:
-        """تعیین جهت معامله"""
-        bullish_patterns = ['hammer', 'morning_star', 'engulfing', 'piercing_line', 'three_white_soldiers']
-        bearish_patterns = ['shooting_star', 'evening_star', 'dark_cloud_cover', 'three_black_crows', 'hanging_man']
+        """تعیین جهت معامله بر اساس الگوها و اندیکاتورها"""
+        bullish_patterns = ['hammer', 'morning_star', 'piercing_line', 'three_white_soldiers', 'harami']
+        bearish_patterns = ['shooting_star', 'evening_star', 'dark_cloud_cover', 'three_black_crows']
 
-        bullish_count = sum(1 for p in patterns if any(bp in p.lower() for bp in bullish_patterns))
-        bearish_count = sum(1 for p in patterns if any(bp in p.lower() for bp in bearish_patterns))
+        bullish_score = 0
+        bearish_score = 0
+
+        # بررسی الگوها
+        for p in patterns:
+            p_lower = p.lower()
+            if any(bp in p_lower for bp in bullish_patterns):
+                bullish_score += 2
+            elif any(bp in p_lower for bp in bearish_patterns):
+                bearish_score += 2
+            elif 'engulfing' in p_lower:
+                # engulfing می‌تواند هر دو جهت باشد - بررسی با کندل
+                if row['close'] > row['open']:
+                    bullish_score += 2
+                else:
+                    bearish_score += 2
+            elif 'doji' in p_lower:
+                # doji نشان‌دهنده بلاتکلیفی - بررسی روند قبلی
+                pass
 
         # بررسی RSI
-        if 'rsi' in row:
+        if 'rsi' in row and pd.notna(row['rsi']):
             if row['rsi'] < 30:
-                bullish_count += 1
+                bullish_score += 1  # oversold
             elif row['rsi'] > 70:
-                bearish_count += 1
+                bearish_score += 1  # overbought
 
-        if bullish_count > bearish_count:
+        # بررسی MACD
+        if 'macd' in row and 'macd_signal' in row:
+            if pd.notna(row['macd']) and pd.notna(row['macd_signal']):
+                if row['macd'] > row['macd_signal']:
+                    bullish_score += 1
+                else:
+                    bearish_score += 1
+
+        # بررسی روند EMA
+        if 'ema_20' in row and 'ema_50' in row:
+            if pd.notna(row['ema_20']) and pd.notna(row['ema_50']):
+                if row['close'] > row['ema_20'] > row['ema_50']:
+                    bullish_score += 1
+                elif row['close'] < row['ema_20'] < row['ema_50']:
+                    bearish_score += 1
+
+        # تصمیم نهایی
+        if bullish_score > bearish_score and bullish_score >= 2:
             return TradeDirection.LONG
-        elif bearish_count > bullish_count:
+        elif bearish_score > bullish_score and bearish_score >= 2:
             return TradeDirection.SHORT
 
         return None
@@ -356,6 +396,10 @@ class FastBacktestEngine:
         entry_price = current_row['close']
         atr = current_row.get('atr', entry_price * 0.02)
 
+        # اگر ATR نامعتبر بود
+        if pd.isna(atr) or atr <= 0:
+            atr = entry_price * 0.02
+
         # محاسبه SL و TP
         if signal['direction'] == TradeDirection.LONG:
             sl_price = entry_price - (atr * 2)
@@ -364,10 +408,25 @@ class FastBacktestEngine:
             sl_price = entry_price + (atr * 2)
             tp_price = entry_price - (atr * 3)
 
-        # محاسبه حجم
-        risk_amount = self.balance * self.risk_per_trade
+        # محاسبه حجم با محدودیت‌های واقعی
+        risk_amount = self.balance * self.risk_per_trade  # 2% risk
         sl_distance = abs(entry_price - sl_price)
-        quantity = risk_amount / sl_distance if sl_distance > 0 else 0
+
+        if sl_distance <= 0:
+            return
+
+        # حجم بر اساس ریسک
+        quantity = risk_amount / sl_distance
+
+        # محدودیت حداکثر حجم معامله (10% از بالانس)
+        max_position_value = self.balance * 0.10
+        max_quantity = max_position_value / entry_price
+        quantity = min(quantity, max_quantity)
+
+        # حداقل حجم معامله
+        min_quantity = 0.001  # برای BTC
+        if quantity < min_quantity:
+            return
 
         self.trade_counter += 1
 
@@ -464,6 +523,23 @@ class FastBacktestEngine:
         losses = [t for t in self.closed_trades if t.pnl <= 0]
 
         total_pnl = sum(t.pnl for t in self.closed_trades)
+        gross_profit = sum(t.pnl for t in wins) if wins else 0
+        gross_loss = abs(sum(t.pnl for t in losses)) if losses else 0
+
+        # Profit Factor
+        profit_factor = gross_profit / gross_loss if gross_loss > 0 else float('inf')
+
+        # Max Drawdown
+        equity_curve = self.results.get('equity_curve', [])
+        max_drawdown = 0
+        peak = self.initial_balance
+        for point in equity_curve:
+            equity = point['equity']
+            if equity > peak:
+                peak = equity
+            drawdown = (peak - equity) / peak * 100
+            if drawdown > max_drawdown:
+                max_drawdown = drawdown
 
         self.results['statistics'] = {
             'total_trades': len(self.closed_trades),
@@ -475,6 +551,10 @@ class FastBacktestEngine:
             'current_equity': self.balance,
             'avg_win': sum(t.pnl for t in wins) / len(wins) if wins else 0,
             'avg_loss': sum(t.pnl for t in losses) / len(losses) if losses else 0,
+            'profit_factor': profit_factor,
+            'max_drawdown': max_drawdown,
+            'gross_profit': gross_profit,
+            'gross_loss': gross_loss,
         }
 
         # ذخیره معاملات
@@ -495,6 +575,238 @@ class FastBacktestEngine:
             }
             for t in self.closed_trades
         ]
+
+    def save_report(self, output_path: str = None):
+        """ذخیره گزارش بکتست"""
+        if output_path is None:
+            output_path = Path(__file__).parent / 'reports'
+            output_path.mkdir(exist_ok=True)
+            output_path = output_path / f"backtest_report_{datetime.now().strftime('%Y%m%d_%H%M%S')}.md"
+
+        stats = self.results['statistics']
+
+        report = f"""# گزارش بکتست
+تاریخ: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
+
+## خلاصه عملکرد
+
+| معیار | مقدار |
+|-------|-------|
+| سرمایه اولیه | {self.initial_balance:,.2f} USDT |
+| سرمایه نهایی | {stats['current_equity']:,.2f} USDT |
+| بازده کل | {stats['total_return']:.2f}% |
+| سود/زیان خالص | {stats['total_pnl']:,.2f} USDT |
+
+## آمار معاملات
+
+| معیار | مقدار |
+|-------|-------|
+| تعداد کل معاملات | {stats['total_trades']} |
+| معاملات برنده | {stats['winning_trades']} |
+| معاملات بازنده | {stats['losing_trades']} |
+| نرخ برد | {stats['win_rate']:.1f}% |
+| میانگین سود | {stats['avg_win']:.2f} USDT |
+| میانگین ضرر | {stats['avg_loss']:.2f} USDT |
+| Profit Factor | {stats['profit_factor']:.2f} |
+| حداکثر Drawdown | {stats['max_drawdown']:.2f}% |
+
+## توزیع معاملات
+
+- سود ناخالص: {stats['gross_profit']:,.2f} USDT
+- ضرر ناخالص: {stats['gross_loss']:,.2f} USDT
+
+## نمونه معاملات (10 معامله اول)
+
+| # | جهت | ورود | خروج | سود/زیان | دلیل |
+|---|-----|------|------|----------|------|
+"""
+        for t in self.results['trades'][:10]:
+            report += f"| {t['id']} | {t['direction']} | {t['entry_price']:.2f} | {t['exit_price']:.2f} | {t['pnl']:.2f} | {t['exit_reason']} |\n"
+
+        report += f"\n---\n*مدت اجرا: {self.results.get('duration', 'N/A')}*\n"
+
+        with open(output_path, 'w', encoding='utf-8') as f:
+            f.write(report)
+
+        logger.info(f"Report saved to: {output_path}")
+        return output_path
+
+    def save_equity_curve(self, output_dir: str = None):
+        """ذخیره نمودار equity curve"""
+        if output_dir is None:
+            output_dir = Path(__file__).parent / 'reports'
+            output_dir.mkdir(exist_ok=True)
+
+        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+
+        # ذخیره به CSV
+        equity_data = self.results.get('equity_curve', [])
+        if not equity_data:
+            logger.warning("No equity curve data available")
+            return None
+
+        csv_path = output_dir / f"equity_curve_{timestamp}.csv"
+        with open(csv_path, 'w') as f:
+            f.write("time,equity\n")
+            for point in equity_data:
+                f.write(f"{point['time']},{point['equity']:.2f}\n")
+
+        logger.info(f"Equity curve saved to: {csv_path}")
+
+        # تلاش برای رسم نمودار
+        try:
+            import matplotlib.pyplot as plt
+
+            times = [p['time'] for p in equity_data]
+            equities = [p['equity'] for p in equity_data]
+
+            # نمودار اصلی با drawdown
+            fig, axes = plt.subplots(2, 1, figsize=(14, 8), gridspec_kw={'height_ratios': [3, 1]})
+
+            # Equity Curve
+            ax1 = axes[0]
+            ax1.plot(equities, 'b-', linewidth=1.2, label='Equity')
+            ax1.axhline(y=self.initial_balance, color='gray', linestyle='--', alpha=0.5, label='Initial Balance')
+            ax1.fill_between(range(len(equities)), self.initial_balance, equities,
+                           where=[e >= self.initial_balance for e in equities],
+                           alpha=0.3, color='green', label='Profit')
+            ax1.fill_between(range(len(equities)), self.initial_balance, equities,
+                           where=[e < self.initial_balance for e in equities],
+                           alpha=0.3, color='red', label='Loss')
+            ax1.set_title('Equity Curve', fontsize=14, fontweight='bold')
+            ax1.set_ylabel('Equity (USDT)')
+            ax1.legend(loc='upper left')
+            ax1.grid(True, alpha=0.3)
+
+            # Drawdown
+            ax2 = axes[1]
+            peak = self.initial_balance
+            drawdowns = []
+            for equity in equities:
+                if equity > peak:
+                    peak = equity
+                dd = (peak - equity) / peak * 100
+                drawdowns.append(dd)
+
+            ax2.fill_between(range(len(drawdowns)), 0, drawdowns, color='red', alpha=0.5)
+            ax2.set_title('Drawdown %', fontsize=12)
+            ax2.set_xlabel('Time')
+            ax2.set_ylabel('Drawdown %')
+            ax2.grid(True, alpha=0.3)
+            ax2.invert_yaxis()
+
+            plt.tight_layout()
+
+            chart_path = output_dir / f"equity_curve_{timestamp}.png"
+            plt.savefig(chart_path, dpi=150, bbox_inches='tight')
+            plt.close()
+
+            logger.info(f"Equity chart saved to: {chart_path}")
+            return chart_path
+
+        except ImportError:
+            logger.info("matplotlib not available, skipping chart generation")
+            return csv_path
+
+    def save_performance_summary(self, output_dir: str = None):
+        """ذخیره نمودار خلاصه عملکرد"""
+        if output_dir is None:
+            output_dir = Path(__file__).parent / 'reports'
+            output_dir.mkdir(exist_ok=True)
+
+        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+
+        try:
+            import matplotlib.pyplot as plt
+
+            stats = self.results['statistics']
+            trades = self.results.get('trades', [])
+
+            fig, axes = plt.subplots(2, 2, figsize=(14, 10))
+
+            # 1. توزیع سود/زیان
+            ax1 = axes[0, 0]
+            pnls = [t['pnl'] for t in trades]
+            colors = ['green' if p > 0 else 'red' for p in pnls]
+            ax1.bar(range(len(pnls)), pnls, color=colors, alpha=0.7, width=1.0)
+            ax1.axhline(y=0, color='black', linewidth=0.5)
+            ax1.set_title('Trade PnL Distribution', fontsize=12, fontweight='bold')
+            ax1.set_xlabel('Trade #')
+            ax1.set_ylabel('PnL (USDT)')
+
+            # 2. هیستوگرام سود/زیان
+            ax2 = axes[0, 1]
+            ax2.hist(pnls, bins=30, color='steelblue', edgecolor='black', alpha=0.7)
+            ax2.axvline(x=0, color='red', linestyle='--', linewidth=1)
+            ax2.axvline(x=np.mean(pnls), color='green', linestyle='--', linewidth=1, label=f'Mean: {np.mean(pnls):.2f}')
+            ax2.set_title('PnL Histogram', fontsize=12, fontweight='bold')
+            ax2.set_xlabel('PnL (USDT)')
+            ax2.set_ylabel('Frequency')
+            ax2.legend()
+
+            # 3. نرخ برد/باخت
+            ax3 = axes[1, 0]
+            win_rate = stats['win_rate']
+            loss_rate = 100 - win_rate
+            ax3.pie([win_rate, loss_rate], labels=['Wins', 'Losses'],
+                   colors=['green', 'red'], autopct='%1.1f%%', startangle=90)
+            ax3.set_title(f"Win Rate: {win_rate:.1f}%", fontsize=12, fontweight='bold')
+
+            # 4. آمار کلیدی
+            ax4 = axes[1, 1]
+            ax4.axis('off')
+            summary_text = f"""
+            PERFORMANCE SUMMARY
+            ═══════════════════════════════════
+
+            Total Trades:       {stats['total_trades']}
+            Win Rate:           {stats['win_rate']:.1f}%
+
+            Total Return:       {stats['total_return']:.2f}%
+            Profit Factor:      {stats['profit_factor']:.2f}
+            Max Drawdown:       {stats['max_drawdown']:.2f}%
+
+            Average Win:        {stats['avg_win']:.2f} USDT
+            Average Loss:       {stats['avg_loss']:.2f} USDT
+
+            Gross Profit:       {stats['gross_profit']:,.2f} USDT
+            Gross Loss:         {stats['gross_loss']:,.2f} USDT
+            Net Profit:         {stats['total_pnl']:,.2f} USDT
+            """
+            ax4.text(0.1, 0.5, summary_text, fontsize=11, fontfamily='monospace',
+                    verticalalignment='center', transform=ax4.transAxes)
+
+            plt.suptitle('Backtest Performance Summary', fontsize=16, fontweight='bold', y=1.02)
+            plt.tight_layout()
+
+            summary_path = output_dir / f"performance_summary_{timestamp}.png"
+            plt.savefig(summary_path, dpi=150, bbox_inches='tight')
+            plt.close()
+
+            logger.info(f"Performance summary saved to: {summary_path}")
+            return summary_path
+
+        except ImportError:
+            logger.info("matplotlib not available, skipping summary chart")
+            return None
+
+    def export_trades_csv(self, output_dir: str = None):
+        """صادر کردن معاملات به CSV"""
+        if output_dir is None:
+            output_dir = Path(__file__).parent / 'reports'
+            output_dir.mkdir(exist_ok=True)
+
+        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+        csv_path = output_dir / f"trades_{timestamp}.csv"
+
+        with open(csv_path, 'w') as f:
+            f.write("id,symbol,direction,entry_time,entry_price,exit_time,exit_price,pnl,pnl_percent,exit_reason,patterns\n")
+            for t in self.results.get('trades', []):
+                patterns = '|'.join(t.get('patterns_found', []) or [])
+                f.write(f"{t['id']},{t['symbol']},{t['direction']},{t['entry_time']},{t['entry_price']:.2f},{t['exit_time']},{t['exit_price']:.2f},{t['pnl']:.2f},{t.get('pnl_percent', 0):.2f},{t['exit_reason']},{patterns}\n")
+
+        logger.info(f"Trades exported to: {csv_path}")
+        return csv_path
 
 
 def load_config(config_path: str) -> Dict:
@@ -545,10 +857,29 @@ def main():
     print("="*70)
     stats = results['statistics']
     print(f"\n  Total Trades: {stats['total_trades']}")
+    print(f"  Winning: {stats.get('winning_trades', 0)} | Losing: {stats.get('losing_trades', 0)}")
     print(f"  Win Rate: {stats['win_rate']:.1f}%")
     print(f"  Total Return: {stats['total_return']:.2f}%")
     print(f"  Final Equity: {stats['current_equity']:.2f} USDT")
+    print(f"  Profit Factor: {stats.get('profit_factor', 0):.2f}")
+    print(f"  Max Drawdown: {stats.get('max_drawdown', 0):.2f}%")
     print(f"  Duration: {results['duration']}")
+
+    # ذخیره گزارش‌ها
+    print("\n  Saving reports...")
+    report_path = engine.save_report()
+    print(f"  - Report: {report_path}")
+
+    equity_path = engine.save_equity_curve()
+    if equity_path:
+        print(f"  - Equity curve: {equity_path}")
+
+    summary_path = engine.save_performance_summary()
+    if summary_path:
+        print(f"  - Performance summary: {summary_path}")
+
+    trades_path = engine.export_trades_csv()
+    print(f"  - Trades CSV: {trades_path}")
     print()
 
 

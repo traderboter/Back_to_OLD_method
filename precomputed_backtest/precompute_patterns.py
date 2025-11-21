@@ -185,6 +185,120 @@ class SimpleCandlePatternDetector:
             return True, 'bearish', 0.75
         return False, 'none', 0
 
+    def detect_spinning_top(self, row: pd.Series) -> Tuple[bool, str, float]:
+        """تشخیص الگوی Spinning Top (بلاتکلیفی)"""
+        o, c, h, l = row['open'], row['close'], row['high'], row['low']
+        body = abs(c - o)
+        upper_shadow = self._upper_shadow(o, c, h)
+        lower_shadow = self._lower_shadow(o, c, l)
+        range_size = h - l
+
+        if range_size == 0:
+            return False, 'none', 0
+
+        # بدنه کوچک با سایه‌های تقریباً مساوی
+        if (body / range_size < 0.3 and
+            abs(upper_shadow - lower_shadow) < range_size * 0.2):
+            return True, 'neutral', 0.5
+        return False, 'none', 0
+
+    def detect_marubozu(self, row: pd.Series) -> Tuple[bool, str, float]:
+        """تشخیص الگوی Marubozu (کندل بدون سایه)"""
+        o, c, h, l = row['open'], row['close'], row['high'], row['low']
+        body = abs(c - o)
+        upper_shadow = self._upper_shadow(o, c, h)
+        lower_shadow = self._lower_shadow(o, c, l)
+        range_size = h - l
+
+        if range_size == 0:
+            return False, 'none', 0
+
+        # بدنه بزرگ با سایه‌های خیلی کوچک
+        if body / range_size > 0.9:
+            direction = 'bullish' if self._is_bullish(o, c) else 'bearish'
+            return True, direction, 0.8
+        return False, 'none', 0
+
+    def detect_inverted_hammer(self, row: pd.Series) -> Tuple[bool, str, float]:
+        """تشخیص الگوی Inverted Hammer (صعودی)"""
+        o, c, h, l = row['open'], row['close'], row['high'], row['low']
+        body = abs(c - o)
+        lower_shadow = self._lower_shadow(o, c, l)
+        upper_shadow = self._upper_shadow(o, c, h)
+
+        # شرایط inverted hammer: سایه بالا بلند، سایه پایین کوتاه، در انتهای روند نزولی
+        if upper_shadow > body * 2 and lower_shadow < body * 0.3:
+            return True, 'bullish', 0.65
+        return False, 'none', 0
+
+    def detect_hanging_man(self, row: pd.Series) -> Tuple[bool, str, float]:
+        """تشخیص الگوی Hanging Man (نزولی)"""
+        o, c, h, l = row['open'], row['close'], row['high'], row['low']
+        body = abs(c - o)
+        lower_shadow = self._lower_shadow(o, c, l)
+        upper_shadow = self._upper_shadow(o, c, h)
+
+        # شرایط hanging man: سایه پایین بلند، سایه بالا کوچک (مثل hammer ولی نزولی)
+        if lower_shadow > body * 2 and upper_shadow < body * 0.5:
+            return True, 'bearish', 0.65
+        return False, 'none', 0
+
+    def detect_tweezer_top(self, curr: pd.Series, prev: pd.Series) -> Tuple[bool, str, float]:
+        """تشخیص الگوی Tweezer Top (نزولی)"""
+        # دو کندل با high تقریباً یکسان
+        tolerance = abs(prev['high'] - curr['high']) / max(prev['high'], curr['high'])
+        if (tolerance < 0.001 and
+            self._is_bullish(prev['open'], prev['close']) and
+            self._is_bearish(curr['open'], curr['close'])):
+            return True, 'bearish', 0.7
+        return False, 'none', 0
+
+    def detect_tweezer_bottom(self, curr: pd.Series, prev: pd.Series) -> Tuple[bool, str, float]:
+        """تشخیص الگوی Tweezer Bottom (صعودی)"""
+        # دو کندل با low تقریباً یکسان
+        tolerance = abs(prev['low'] - curr['low']) / max(prev['low'], curr['low'])
+        if (tolerance < 0.001 and
+            self._is_bearish(prev['open'], prev['close']) and
+            self._is_bullish(curr['open'], curr['close'])):
+            return True, 'bullish', 0.7
+        return False, 'none', 0
+
+    def detect_dragonfly_doji(self, row: pd.Series) -> Tuple[bool, str, float]:
+        """تشخیص الگوی Dragonfly Doji (صعودی)"""
+        o, c, h, l = row['open'], row['close'], row['high'], row['low']
+        body = abs(c - o)
+        lower_shadow = self._lower_shadow(o, c, l)
+        upper_shadow = self._upper_shadow(o, c, h)
+        range_size = h - l
+
+        if range_size == 0:
+            return False, 'none', 0
+
+        # بدنه خیلی کوچک، سایه پایین بلند، بدون سایه بالا
+        if (body / range_size < 0.1 and
+            lower_shadow > range_size * 0.7 and
+            upper_shadow < range_size * 0.1):
+            return True, 'bullish', 0.7
+        return False, 'none', 0
+
+    def detect_gravestone_doji(self, row: pd.Series) -> Tuple[bool, str, float]:
+        """تشخیص الگوی Gravestone Doji (نزولی)"""
+        o, c, h, l = row['open'], row['close'], row['high'], row['low']
+        body = abs(c - o)
+        lower_shadow = self._lower_shadow(o, c, l)
+        upper_shadow = self._upper_shadow(o, c, h)
+        range_size = h - l
+
+        if range_size == 0:
+            return False, 'none', 0
+
+        # بدنه خیلی کوچک، سایه بالا بلند، بدون سایه پایین
+        if (body / range_size < 0.1 and
+            upper_shadow > range_size * 0.7 and
+            lower_shadow < range_size * 0.1):
+            return True, 'bearish', 0.7
+        return False, 'none', 0
+
 
 class PatternPrecomputer:
     """محاسبه و ذخیره الگوها"""
@@ -231,7 +345,9 @@ class PatternPrecomputer:
         pattern_names = [
             'doji', 'hammer', 'shooting_star', 'engulfing',
             'morning_star', 'evening_star', 'three_white_soldiers',
-            'three_black_crows', 'harami', 'piercing_line', 'dark_cloud_cover'
+            'three_black_crows', 'harami', 'piercing_line', 'dark_cloud_cover',
+            'spinning_top', 'marubozu', 'inverted_hammer', 'hanging_man',
+            'tweezer_top', 'tweezer_bottom', 'dragonfly_doji', 'gravestone_doji'
         ]
 
         for pname in pattern_names:
@@ -314,6 +430,56 @@ class PatternPrecomputer:
                 result.loc[result.index[i], 'pattern_three_black_crows_direction'] = direction
                 result.loc[result.index[i], 'pattern_three_black_crows_score'] = score
 
+            # الگوهای جدید تک کندلی
+            found, direction, score = self.detector.detect_spinning_top(curr)
+            if found:
+                result.loc[result.index[i], 'pattern_spinning_top'] = 1
+                result.loc[result.index[i], 'pattern_spinning_top_direction'] = direction
+                result.loc[result.index[i], 'pattern_spinning_top_score'] = score
+
+            found, direction, score = self.detector.detect_marubozu(curr)
+            if found:
+                result.loc[result.index[i], 'pattern_marubozu'] = 1
+                result.loc[result.index[i], 'pattern_marubozu_direction'] = direction
+                result.loc[result.index[i], 'pattern_marubozu_score'] = score
+
+            found, direction, score = self.detector.detect_inverted_hammer(curr)
+            if found:
+                result.loc[result.index[i], 'pattern_inverted_hammer'] = 1
+                result.loc[result.index[i], 'pattern_inverted_hammer_direction'] = direction
+                result.loc[result.index[i], 'pattern_inverted_hammer_score'] = score
+
+            found, direction, score = self.detector.detect_hanging_man(curr)
+            if found:
+                result.loc[result.index[i], 'pattern_hanging_man'] = 1
+                result.loc[result.index[i], 'pattern_hanging_man_direction'] = direction
+                result.loc[result.index[i], 'pattern_hanging_man_score'] = score
+
+            found, direction, score = self.detector.detect_dragonfly_doji(curr)
+            if found:
+                result.loc[result.index[i], 'pattern_dragonfly_doji'] = 1
+                result.loc[result.index[i], 'pattern_dragonfly_doji_direction'] = direction
+                result.loc[result.index[i], 'pattern_dragonfly_doji_score'] = score
+
+            found, direction, score = self.detector.detect_gravestone_doji(curr)
+            if found:
+                result.loc[result.index[i], 'pattern_gravestone_doji'] = 1
+                result.loc[result.index[i], 'pattern_gravestone_doji_direction'] = direction
+                result.loc[result.index[i], 'pattern_gravestone_doji_score'] = score
+
+            # الگوهای جدید دو کندلی
+            found, direction, score = self.detector.detect_tweezer_top(curr, prev)
+            if found:
+                result.loc[result.index[i], 'pattern_tweezer_top'] = 1
+                result.loc[result.index[i], 'pattern_tweezer_top_direction'] = direction
+                result.loc[result.index[i], 'pattern_tweezer_top_score'] = score
+
+            found, direction, score = self.detector.detect_tweezer_bottom(curr, prev)
+            if found:
+                result.loc[result.index[i], 'pattern_tweezer_bottom'] = 1
+                result.loc[result.index[i], 'pattern_tweezer_bottom_direction'] = direction
+                result.loc[result.index[i], 'pattern_tweezer_bottom_score'] = score
+
         return result
 
     def precompute_all(self) -> Dict[str, Dict[str, pd.DataFrame]]:
@@ -374,7 +540,9 @@ class PatternPrecomputer:
             'patterns': [
                 'doji', 'hammer', 'shooting_star', 'engulfing',
                 'morning_star', 'evening_star', 'three_white_soldiers',
-                'three_black_crows', 'harami', 'piercing_line', 'dark_cloud_cover'
+                'three_black_crows', 'harami', 'piercing_line', 'dark_cloud_cover',
+                'spinning_top', 'marubozu', 'inverted_hammer', 'hanging_man',
+                'tweezer_top', 'tweezer_bottom', 'dragonfly_doji', 'gravestone_doji'
             ]
         }
 

@@ -3,9 +3,11 @@
 ## اولویت بالا
 
 ### 1. بهینه‌سازی منطق سیگنال
-- [ ] آستانه سیگنال فعلی (60) خیلی بالاست و معامله‌ای تولید نمی‌کند
-- [ ] منطق تولید سیگنال در `fast_backtest.py` باید با سیستم اصلی هماهنگ شود
+- [x] آستانه سیگنال از 60 به 30 کاهش یافت ✓
+- [x] امتیازدهی بهتر: الگوها +20، RSI +15، MACD +10، روند +15 ✓
+- [x] تشخیص جهت بهتر با دسته‌بندی الگوها ✓
 - [ ] بررسی و پیاده‌سازی استراتژی‌های معاملاتی واقعی
+- [x] اصلاح position sizing برای نتایج واقعی‌تر (حداکثر 10% بالانس) ✓
 
 ### 2. تست صحت نتایج
 - [ ] مقایسه نتایج بکتست سریع با بکتست اصلی
@@ -21,18 +23,27 @@
 ## اولویت متوسط
 
 ### 4. اضافه کردن اندیکاتورهای بیشتر
-- [ ] Ichimoku Cloud
+- [x] Ichimoku Cloud ✓
 - [ ] Fibonacci Retracement
 - [ ] Volume Profile
-- [ ] VWAP
-- [ ] Pivot Points
+- [x] VWAP ✓
+- [x] Pivot Points ✓
+- [x] Williams %R ✓
+- [x] CCI (Commodity Channel Index) ✓
 
 ### 5. اضافه کردن الگوهای بیشتر
-- [ ] Double Top / Double Bottom
-- [ ] Head and Shoulders
-- [ ] Triangle patterns
-- [ ] Flag patterns
-- [ ] Cup and Handle
+- [x] Spinning Top ✓
+- [x] Marubozu ✓
+- [x] Inverted Hammer ✓
+- [x] Hanging Man ✓
+- [x] Tweezer Top/Bottom ✓
+- [x] Dragonfly Doji ✓
+- [x] Gravestone Doji ✓
+- [ ] Double Top / Double Bottom (chart pattern)
+- [ ] Head and Shoulders (chart pattern)
+- [ ] Triangle patterns (chart pattern)
+- [ ] Flag patterns (chart pattern)
+- [ ] Cup and Handle (chart pattern)
 
 ### 6. پشتیبانی از نمادهای بیشتر
 - [ ] ETH-USDT
@@ -41,8 +52,10 @@
 
 ### 7. گزارش‌دهی
 - [ ] تولید گزارش PDF
-- [ ] نمودار equity curve
-- [ ] آمار معاملات (win rate, profit factor, ...)
+- [x] نمودار equity curve (CSV export) ✓
+- [x] آمار معاملات (win rate, profit factor, max drawdown) ✓
+- [x] گزارش Markdown ✓
+- [x] خروجی CSV معاملات ✓
 
 ---
 
@@ -75,6 +88,15 @@
 - [x] ذخیره در فرمت Parquet
 - [x] پیش‌محاسبه برای 4 تایم‌فریم (5m, 15m, 1h, 4h)
 - [x] مستندات
+- [x] بهبود منطق سیگنال (آستانه 30، امتیازدهی بهتر)
+- [x] تولید معاملات (1453 معامله، 51% win rate)
+- [x] سرعت ~8000 کندل/ثانیه
+- [x] اصلاح position sizing (نتیجه واقعی: 27% بازده)
+- [x] گزارش Markdown با آمار کامل (Profit Factor: 1.52، Max Drawdown: 1.01%)
+- [x] خروجی equity curve به CSV
+- [x] خروجی لیست معاملات به CSV
+- [x] نمودار equity curve با drawdown (matplotlib)
+- [x] نمودار خلاصه عملکرد (4 پنل)
 
 ---
 
