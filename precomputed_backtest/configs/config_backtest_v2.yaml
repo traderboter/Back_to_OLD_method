@@ -59,10 +59,18 @@ backtest:
   # بازه زمانی (full data range: 2024-11-23 to 2025-10-18)
   start_date: '2024-11-23 03:00:00'
   end_date: '2025-10-18 07:00:00'
-  
+
   # موجودی اولیه
   initial_balance: 10000.0
-  
+
+  # === روش امتیازدهی (Scoring Method) ===
+  # گزینه‌ها:
+  #   - 'new': 8 ضریب، امتیاز محدود به 300 (آستانه: 50)
+  #   - 'old': 13 ضریب، امتیاز نامحدود (آستانه: 200)
+  #   - 'hybrid': ترکیبی از هر دو (آستانه: 80)
+  #   - 'strategy': استفاده از StrategyEnsemble (روش قبلی)
+  scoring_method: 'strategy'
+
   # نمادها
   symbols:
     - 'BTC-USDT'
