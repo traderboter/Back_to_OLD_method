@@ -1,0 +1,89 @@
+# ================= Scoring Config: NEW SYSTEM =================
+# این فایل شامل تنظیمات scoring برای NEW SYSTEM است
+# استفاده از 13 multiplier با محدودیت score
+# ================================================================
+
+# ================= Orchestrator Settings =================
+orchestrator:
+  # Multi-TF Aggregation (NEW SYSTEM)
+  use_multi_tf_aggregation: true
+
+  # Skip validation in analysis mode
+  skip_validation: false
+
+signal_processing:
+  scoring:
+    # محدودیت امتیاز (NEW SYSTEM uses bounded scoring)
+    max_final_score: 100
+
+    # وزن‌های analyzer (NEW SYSTEM)
+    weights:
+      trend: 0.30
+      momentum: 0.25
+      volume: 0.20
+      patterns: 0.10
+      support_resistance: 0.08
+      volatility: 0.05
+      harmonic: 0.01
+      channel: 0.005
+      cyclical: 0.003
+      htf: 0.002
+
+    # وزن‌های timeframe (NEW SYSTEM)
+    timeframe_weights:
+      5m: 0.70
+      15m: 0.85
+      1h: 1.00
+      4h: 1.10
+
+    # پارامترهای امتیازدهی
+    base_score_scale: 100
+    max_confluence_bonus: 0.5
+    htf_alignment_bonus: 0.3
+    htf_misalignment_penalty: 0.3
+
+# ================= Multi-Timeframe Settings =================
+multi_timeframe:
+  # حداقل تعداد timeframe برای تایید
+  min_timeframes: 2
+
+  # وزن‌های timeframe برای aggregation
+  weights:
+    5m: 0.15
+    15m: 0.20
+    1h: 0.30
+    4h: 0.35
+
+  # Direction margin برای تایید
+  direction_margin: 1.3
+
+# ================= Validation Thresholds =================
+validation:
+  min_signal_score: 50         # حداقل امتیاز برای سیگنال
+  strong_signal_threshold: 70  # آستانه سیگنال قوی
+  min_rr_ratio: 1.5            # حداقل Risk/Reward
+  max_risk_percent: 2.0        # حداکثر ریسک هر معامله
+
+# ================= Risk Management =================
+risk_management:
+  # SL/TP Priority (NEW SYSTEM 5-method)
+  sl_tp_priority:
+    - harmonic       # 1st: الگوهای هارمونیک
+    - channel        # 2nd: کانال قیمتی
+    - sr             # 3rd: Support/Resistance
+    - atr            # 4th: ATR-based
+    - percentage     # 5th: Percentage fallback
+
+  # ATR Settings
+  atr_multiplier_sl: 2.0
+  atr_multiplier_tp: 3.0
+
+  # Default fallback percentages
+  default_stop_loss_percent: 2.0
+  default_take_profit_percent: 3.0
+
+  # Minimum Risk/Reward ratio
+  min_risk_reward_ratio: 1.5
+
+  # Max S/R distance (in ATR multiples)
+  max_sr_distance_atr_ratio: 3.0
