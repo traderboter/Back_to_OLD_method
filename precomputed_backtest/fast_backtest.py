@@ -29,6 +29,9 @@ from enum import Enum
 # Add parent directory to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
+# Import strategies
+from strategies import StrategyEnsemble, SignalDirection
+
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
@@ -62,6 +65,13 @@ class Trade:
     signal_score: float = 0.0
     patterns_found: List[str] = None
     indicators_snapshot: Dict[str, float] = None
+    signal_reason: str = ""
+    strategies_triggered: List[str] = None
+
+    # Trailing Stop
+    highest_price: float = 0.0  # برای LONG
+    lowest_price: float = float('inf')  # برای SHORT
+    trailing_sl_price: Optional[float] = None
 
 
 class PrecomputedDataLoader:
@@ -153,6 +163,27 @@ class FastBacktestEngine:
         self.risk_per_trade = config.get('risk_management', {}).get('risk_per_trade', 0.02)
         self.min_signal_score = 30  # آستانه پایین‌تر برای تولید سیگنال بیشتر
 
+        # تنظیمات واقعی‌تر
+        self.commission_rate = self.backtest_config.get('commission_rate', 0.001)  # 0.1% کمیسیون
+        self.slippage_rate = self.backtest_config.get('slippage_rate', 0.0005)  # 0.05% slippage
+
+        # Trailing Stop تنظیمات
+        self.trailing_stop_enabled = self.backtest_config.get('trailing_stop_enabled', True)
+        self.trailing_stop_activation = self.backtest_config.get('trailing_stop_activation', 1.5)  # فعال شدن بعد از 1.5R سود
+        self.trailing_stop_distance = self.backtest_config.get('trailing_stop_distance', 1.0)  # فاصله 1R از قیمت
+
+        # tracking برای drawdown دقیق
+        self.peak_equity = self.initial_balance
+        self.max_drawdown = 0.0
+        self.drawdown_history = []
+
+        # استراتژی ensemble
+        self.strategy_ensemble = StrategyEnsemble({
+            'voting_threshold': 0.5,
+            'min_agreement': 2,
+            'min_score': self.min_signal_score
+        })
+
         # وضعیت
         self.balance = self.initial_balance
         self.equity = self.initial_balance
@@ -164,12 +195,14 @@ class FastBacktestEngine:
         self.results = {
             'trades': [],
             'equity_curve': [],
-            'statistics': {}
+            'statistics': {},
+            'per_symbol': {}  # آمار هر سیمبل جداگانه
         }
 
         logger.info(f"FastBacktestEngine initialized")
         logger.info(f"  Symbols: {self.symbols}")
         logger.info(f"  Initial balance: {self.initial_balance}")
+        logger.info(f"  Trailing Stop: {'Enabled' if self.trailing_stop_enabled else 'Disabled'}")
 
     def run(self) -> Dict:
         """اجرای بکتست سریع"""
@@ -226,12 +259,26 @@ class FastBacktestEngine:
                 if signal:
                     self._open_trade(signal, current_row, current_time, symbol)
 
-            # 3. ثبت equity
-            if i % 100 == 0:
-                self.results['equity_curve'].append({
-                    'time': str(current_time),
-                    'equity': self._calculate_equity(current_row)
-                })
+            # 3. ثبت equity و محاسبه drawdown (هر 10 کندل برای دقت بیشتر)
+            if i % 10 == 0:
+                current_equity = self._calculate_equity(current_row)
+
+                # به‌روزرسانی peak و drawdown
+                if current_equity > self.peak_equity:
+                    self.peak_equity = current_equity
+
+                if self.peak_equity > 0:
+                    current_drawdown = (self.peak_equity - current_equity) / self.peak_equity * 100
+                    if current_drawdown > self.max_drawdown:
+                        self.max_drawdown = current_drawdown
+
+                # ثبت در equity curve (هر 50 کندل برای کاهش حجم داده)
+                if i % 50 == 0:
+                    self.results['equity_curve'].append({
+                        'time': str(current_time),
+                        'equity': current_equity,
+                        'drawdown': current_drawdown if self.peak_equity > 0 else 0
+                    })
 
             pbar.update(1)
             pbar.set_postfix({
@@ -241,11 +288,27 @@ class FastBacktestEngine:
 
         pbar.close()
 
+        # ثبت آمار این سیمبل
+        symbol_trades = [t for t in self.closed_trades if t.symbol == symbol]
+        if symbol_trades:
+            symbol_wins = [t for t in symbol_trades if t.pnl > 0]
+            symbol_losses = [t for t in symbol_trades if t.pnl <= 0]
+            self.results['per_symbol'][symbol] = {
+                'total_trades': len(symbol_trades),
+                'winning_trades': len(symbol_wins),
+                'losing_trades': len(symbol_losses),
+                'win_rate': (len(symbol_wins) / len(symbol_trades)) * 100,
+                'total_pnl': sum(t.pnl for t in symbol_trades),
+                'avg_pnl': sum(t.pnl for t in symbol_trades) / len(symbol_trades),
+                'trailing_sl_count': len([t for t in symbol_trades if t.exit_reason == 'trailing_sl']),
+            }
+            logger.info(f"  {symbol}: {len(symbol_trades)} trades, {self.results['per_symbol'][symbol]['win_rate']:.1f}% win rate")
+
     def _check_signal(self, df_signal: pd.DataFrame, current_time: datetime, symbol: str) -> Optional[Dict]:
         """
-        بررسی وجود سیگنال در زمان فعلی
+        بررسی وجود سیگنال در زمان فعلی با استفاده از استراتژی‌های حرفه‌ای
 
-        این متد از داده‌های از پیش محاسبه شده استفاده می‌کند.
+        این متد از StrategyEnsemble برای تحلیل استفاده می‌کند.
         """
         # پیدا کردن نزدیک‌ترین کندل signal timeframe
         try:
@@ -258,34 +321,34 @@ class FastBacktestEngine:
         except:
             return None
 
-        # بررسی الگوها
+        # استفاده از StrategyEnsemble برای تحلیل
+        direction, score, reason, details = self.strategy_ensemble.analyze(row)
+
+        if direction is None or score < self.min_signal_score:
+            return None
+
+        # تبدیل جهت به TradeDirection
+        if direction == SignalDirection.LONG:
+            trade_direction = TradeDirection.LONG
+        elif direction == SignalDirection.SHORT:
+            trade_direction = TradeDirection.SHORT
+        else:
+            return None
+
+        # جمع‌آوری الگوهای پیدا شده
         patterns_found = []
         pattern_cols = [c for c in df_signal.columns if c.startswith('pattern_') and not c.endswith('_direction') and not c.endswith('_score')]
-
         for col in pattern_cols:
             if col in row and row[col] == 1:
-                pattern_name = col.replace('pattern_', '')
-                patterns_found.append(pattern_name)
-
-        if not patterns_found:
-            return None
-
-        # محاسبه امتیاز ساده
-        score = self._calculate_signal_score(row, patterns_found)
-
-        if score < self.min_signal_score:
-            return None
-
-        # تعیین جهت
-        direction = self._determine_direction(row, patterns_found)
-        if direction is None:
-            return None
+                patterns_found.append(col.replace('pattern_', ''))
 
         return {
             'score': score,
-            'direction': direction,
+            'direction': trade_direction,
             'patterns': patterns_found,
-            'indicators': self._get_indicators_snapshot(row)
+            'indicators': self._get_indicators_snapshot(row),
+            'reason': reason,
+            'strategies': details.get('long_strategies', []) if direction == SignalDirection.LONG else details.get('short_strategies', [])
         }
 
     def _calculate_signal_score(self, row: pd.Series, patterns: List[str]) -> float:
@@ -393,7 +456,14 @@ class FastBacktestEngine:
         if len(self.open_trades) >= 3:  # حداکثر 3 معامله همزمان
             return
 
-        entry_price = current_row['close']
+        base_price = current_row['close']
+
+        # اعمال slippage (قیمت بدتر برای ورود)
+        if signal['direction'] == TradeDirection.LONG:
+            entry_price = base_price * (1 + self.slippage_rate)  # خرید با قیمت بالاتر
+        else:
+            entry_price = base_price * (1 - self.slippage_rate)  # فروش با قیمت پایین‌تر
+
         atr = current_row.get('atr', entry_price * 0.02)
 
         # اگر ATR نامعتبر بود
@@ -441,11 +511,16 @@ class FastBacktestEngine:
             tp_price=tp_price,
             signal_score=signal['score'],
             patterns_found=signal['patterns'],
-            indicators_snapshot=signal['indicators']
+            indicators_snapshot=signal['indicators'],
+            signal_reason=signal.get('reason', ''),
+            strategies_triggered=signal.get('strategies', []),
+            highest_price=entry_price,  # برای trailing stop
+            lowest_price=entry_price,   # برای trailing stop
         )
 
         self.open_trades.append(trade)
-        logger.debug(f"Opened {signal['direction'].value} trade at {entry_price:.2f}")
+        strategies_str = ', '.join(signal.get('strategies', []))
+        logger.debug(f"Opened {signal['direction'].value} trade at {entry_price:.2f} | Strategies: {strategies_str}")
 
     def _update_open_trades(self, current_row: pd.Series, current_time: datetime):
         """به‌روزرسانی معاملات باز"""
@@ -459,32 +534,86 @@ class FastBacktestEngine:
             exit_price = None
             exit_reason = None
 
+            # محاسبه R (فاصله SL اولیه)
+            initial_sl_distance = abs(trade.entry_price - trade.sl_price)
+
+            # به‌روزرسانی Trailing Stop
+            if self.trailing_stop_enabled and initial_sl_distance > 0:
+                if trade.direction == TradeDirection.LONG:
+                    # به‌روزرسانی highest price
+                    if high > trade.highest_price:
+                        trade.highest_price = high
+
+                    # محاسبه سود فعلی به R
+                    current_profit_r = (trade.highest_price - trade.entry_price) / initial_sl_distance
+
+                    # اگر سود به حد فعال‌سازی رسید
+                    if current_profit_r >= self.trailing_stop_activation:
+                        new_trailing_sl = trade.highest_price - (initial_sl_distance * self.trailing_stop_distance)
+                        # فقط اگر trailing SL بالاتر از SL فعلی باشد
+                        if trade.trailing_sl_price is None or new_trailing_sl > trade.trailing_sl_price:
+                            trade.trailing_sl_price = new_trailing_sl
+
+                else:  # SHORT
+                    # به‌روزرسانی lowest price
+                    if low < trade.lowest_price:
+                        trade.lowest_price = low
+
+                    # محاسبه سود فعلی به R
+                    current_profit_r = (trade.entry_price - trade.lowest_price) / initial_sl_distance
+
+                    # اگر سود به حد فعال‌سازی رسید
+                    if current_profit_r >= self.trailing_stop_activation:
+                        new_trailing_sl = trade.lowest_price + (initial_sl_distance * self.trailing_stop_distance)
+                        # فقط اگر trailing SL پایین‌تر از SL فعلی باشد
+                        if trade.trailing_sl_price is None or new_trailing_sl < trade.trailing_sl_price:
+                            trade.trailing_sl_price = new_trailing_sl
+
+            # تعیین SL فعال (trailing یا اصلی)
+            active_sl = trade.trailing_sl_price if trade.trailing_sl_price else trade.sl_price
+
             if trade.direction == TradeDirection.LONG:
-                if low <= trade.sl_price:
-                    exit_price = trade.sl_price
-                    exit_reason = 'sl_hit'
+                if low <= active_sl:
+                    exit_price = active_sl
+                    exit_reason = 'trailing_sl' if trade.trailing_sl_price else 'sl_hit'
                 elif high >= trade.tp_price:
                     exit_price = trade.tp_price
                     exit_reason = 'tp_hit'
             else:  # SHORT
-                if high >= trade.sl_price:
-                    exit_price = trade.sl_price
-                    exit_reason = 'sl_hit'
+                if high >= active_sl:
+                    exit_price = active_sl
+                    exit_reason = 'trailing_sl' if trade.trailing_sl_price else 'sl_hit'
                 elif low <= trade.tp_price:
                     exit_price = trade.tp_price
                     exit_reason = 'tp_hit'
 
             if exit_price:
                 trade.exit_time = current_time
-                trade.exit_price = exit_price
+
+                # اعمال slippage بر قیمت خروج (قیمت بدتر)
+                if trade.direction == TradeDirection.LONG:
+                    # برای LONG، فروش با قیمت پایین‌تر
+                    actual_exit_price = exit_price * (1 - self.slippage_rate)
+                else:
+                    # برای SHORT، خرید با قیمت بالاتر
+                    actual_exit_price = exit_price * (1 + self.slippage_rate)
+
+                trade.exit_price = actual_exit_price
                 trade.exit_reason = exit_reason
 
-                # محاسبه PnL
+                # محاسبه PnL خام
                 if trade.direction == TradeDirection.LONG:
-                    trade.pnl = (exit_price - trade.entry_price) * trade.quantity
+                    gross_pnl = (actual_exit_price - trade.entry_price) * trade.quantity
                 else:
-                    trade.pnl = (trade.entry_price - exit_price) * trade.quantity
+                    gross_pnl = (trade.entry_price - actual_exit_price) * trade.quantity
 
+                # محاسبه کمیسیون (برای ورود و خروج)
+                entry_commission = trade.entry_price * trade.quantity * self.commission_rate
+                exit_commission = actual_exit_price * trade.quantity * self.commission_rate
+                total_commission = entry_commission + exit_commission
+
+                # PnL خالص (بعد از کسر کمیسیون)
+                trade.pnl = gross_pnl - total_commission
                 trade.pnl_percent = (trade.pnl / (trade.entry_price * trade.quantity)) * 100
 
                 self.balance += trade.pnl
@@ -529,17 +658,14 @@ class FastBacktestEngine:
         # Profit Factor
         profit_factor = gross_profit / gross_loss if gross_loss > 0 else float('inf')
 
-        # Max Drawdown
-        equity_curve = self.results.get('equity_curve', [])
-        max_drawdown = 0
-        peak = self.initial_balance
-        for point in equity_curve:
-            equity = point['equity']
-            if equity > peak:
-                peak = equity
-            drawdown = (peak - equity) / peak * 100
-            if drawdown > max_drawdown:
-                max_drawdown = drawdown
+        # استفاده از max_drawdown ردیابی شده (دقیق‌تر)
+        max_drawdown = self.max_drawdown
+
+        # محاسبه کل کمیسیون پرداخت شده
+        total_commission = sum(
+            (t.entry_price * t.quantity * self.commission_rate * 2)  # ورود + خروج
+            for t in self.closed_trades
+        )
 
         self.results['statistics'] = {
             'total_trades': len(self.closed_trades),
@@ -555,6 +681,9 @@ class FastBacktestEngine:
             'max_drawdown': max_drawdown,
             'gross_profit': gross_profit,
             'gross_loss': gross_loss,
+            'total_commission': total_commission,
+            'commission_rate': self.commission_rate * 100,  # درصد
+            'slippage_rate': self.slippage_rate * 100,  # درصد
         }
 
         # ذخیره معاملات
@@ -571,7 +700,9 @@ class FastBacktestEngine:
                 'pnl_percent': t.pnl_percent,
                 'exit_reason': t.exit_reason,
                 'signal_score': t.signal_score,
-                'patterns_found': t.patterns_found
+                'patterns_found': t.patterns_found,
+                'signal_reason': t.signal_reason,
+                'strategies_triggered': t.strategies_triggered
             }
             for t in self.closed_trades
         ]
@@ -800,10 +931,11 @@ class FastBacktestEngine:
         csv_path = output_dir / f"trades_{timestamp}.csv"
 
         with open(csv_path, 'w') as f:
-            f.write("id,symbol,direction,entry_time,entry_price,exit_time,exit_price,pnl,pnl_percent,exit_reason,patterns\n")
+            f.write("id,symbol,direction,entry_time,entry_price,exit_time,exit_price,pnl,pnl_percent,exit_reason,patterns,strategies\n")
             for t in self.results.get('trades', []):
                 patterns = '|'.join(t.get('patterns_found', []) or [])
-                f.write(f"{t['id']},{t['symbol']},{t['direction']},{t['entry_time']},{t['entry_price']:.2f},{t['exit_time']},{t['exit_price']:.2f},{t['pnl']:.2f},{t.get('pnl_percent', 0):.2f},{t['exit_reason']},{patterns}\n")
+                strategies = '|'.join(t.get('strategies_triggered', []) or [])
+                f.write(f"{t['id']},{t['symbol']},{t['direction']},{t['entry_time']},{t['entry_price']:.2f},{t['exit_time']},{t['exit_price']:.2f},{t['pnl']:.2f},{t.get('pnl_percent', 0):.2f},{t['exit_reason']},{patterns},{strategies}\n")
 
         logger.info(f"Trades exported to: {csv_path}")
         return csv_path
@@ -864,6 +996,17 @@ def main():
     print(f"  Profit Factor: {stats.get('profit_factor', 0):.2f}")
     print(f"  Max Drawdown: {stats.get('max_drawdown', 0):.2f}%")
     print(f"  Duration: {results['duration']}")
+    print(f"\n  --- Realistic Costs ---")
+    print(f"  Commission: {stats.get('commission_rate', 0):.2f}% per trade")
+    print(f"  Slippage: {stats.get('slippage_rate', 0):.3f}% per trade")
+    print(f"  Total Commission Paid: {stats.get('total_commission', 0):.2f} USDT")
+
+    # آمار هر سیمبل
+    per_symbol = results.get('per_symbol', {})
+    if len(per_symbol) > 1:
+        print(f"\n  --- Per Symbol Stats ---")
+        for sym, sym_stats in per_symbol.items():
+            print(f"  {sym}: {sym_stats['total_trades']} trades, {sym_stats['win_rate']:.1f}% win, PnL: {sym_stats['total_pnl']:.2f}")
 
     # ذخیره گزارش‌ها
     print("\n  Saving reports...")
