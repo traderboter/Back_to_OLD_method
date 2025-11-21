@@ -707,6 +707,10 @@ class SignalOrchestrator:
             }
 
             # Build signal
+            # Get confidence from details or calculate from score
+            confidence = score.details.get('confidence', 0.7) if score.details else 0.7
+            contributing = score.details.get('contributing_analyzers', []) if score.details else []
+
             signal = SignalInfo(
                 symbol=context.symbol,
                 timeframe=context.timeframe,
@@ -715,8 +719,8 @@ class SignalOrchestrator:
                 stop_loss=stop_loss,
                 take_profit=take_profit,
                 score=score,
-                confidence=score.confidence,
-                contributing_analyzers=score.contributing_analyzers,
+                confidence=confidence,
+                contributing_analyzers=contributing,
                 analysis_summary=analysis_summary,  # ✅ Complete analyzer results
                 market_context=market_context  # ✅ Market conditions at signal time
             )
