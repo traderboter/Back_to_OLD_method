@@ -399,17 +399,9 @@ class SignalOrchestrator:
                 self.stats.errors += 1
                 return None
 
-            logger.info(
-                f"  ✓ Score: {score.final_score:.2f} "
-                f"({score.signal_strength}, conf={score.confidence:.2f})"
-            )
-
-            # ✨ لاگ جزئیات الگوهای تشخیص داده شده
-            if score.detected_patterns:
-                logger.info(
-                    f"  📊 الگوهای تشخیص داده شده برای {symbol} {direction}:\n"
-                    f"{score.get_pattern_summary()}"
-                )
+            # Get confidence from details if available
+            confidence = score.details.get('confidence', 0.7) if score.details else 0.7
+            logger.info(f"  ✓ Score: {score.final_score:.2f} (conf={confidence:.2f})")
 
             # Build SignalInfo
             signal = self._build_signal_info(context, direction, score)
@@ -1159,61 +1151,32 @@ class SignalOrchestrator:
             # Market regime
             'market_regime': market_regime,
 
-            # Complete scoring breakdown
+            # Complete scoring breakdown (13 Multipliers)
             'score_breakdown': {
                 'final_score': score.final_score,
                 'base_score': score.base_score,
-                'confidence': score.confidence,
-                'signal_strength': score.signal_strength,
+                'confidence': score.details.get('confidence', 0.7) if score.details else 0.7,
 
-                # Individual analyzer scores
-                'analyzer_scores': {
-                    'trend': score.trend_score,
-                    'momentum': score.momentum_score,
-                    'volume': score.volume_score,
-                    'pattern': score.pattern_score,
-                    'sr': score.sr_score,
-                    'volatility': score.volatility_score,
-                    'harmonic': score.harmonic_score,
-                    'channel': score.channel_score,
-                    'cyclical': score.cyclical_score,
-                    'htf': score.htf_score,
-                },
-
-                # Weighted scores
-                'weighted_scores': {
-                    'trend': score.weighted_trend,
-                    'momentum': score.weighted_momentum,
-                    'volume': score.weighted_volume,
-                    'pattern': score.weighted_pattern,
-                    'sr': score.weighted_sr,
-                    'volatility': score.weighted_volatility,
-                    'harmonic': score.weighted_harmonic,
-                    'channel': score.weighted_channel,
-                    'cyclical': score.weighted_cyclical,
-                    'htf': score.weighted_htf,
-                },
-
-                # Multipliers
+                # 13 Multipliers from SignalScore
                 'multipliers': {
-                    'confluence_bonus': score.confluence_bonus,
                     'timeframe_weight': score.timeframe_weight,
-                    'htf_multiplier': score.htf_multiplier,
-                    'volatility_multiplier': score.volatility_multiplier,
                     'trend_alignment': score.trend_alignment,
                     'volume_confirmation': score.volume_confirmation,
                     'pattern_quality': score.pattern_quality,
+                    'confluence_score': score.confluence_score,
+                    'symbol_performance_factor': score.symbol_performance_factor,
+                    'correlation_safety_factor': score.correlation_safety_factor,
                     'macd_analysis_score': score.macd_analysis_score,
+                    'structure_score': score.structure_score,
+                    'volatility_score': score.volatility_score,
+                    'harmonic_pattern_score': score.harmonic_pattern_score,
+                    'price_channel_score': score.price_channel_score,
+                    'cyclical_pattern_score': score.cyclical_pattern_score,
                 },
-
-                # Contributing analyzers
-                'contributing_analyzers': score.contributing_analyzers,
-                'aligned_analyzers': score.aligned_analyzers,
             },
 
-            # Detected patterns
-            'detected_patterns': score.detected_patterns if hasattr(score, 'detected_patterns') else [],
-            'pattern_contributions': score.pattern_contributions if hasattr(score, 'pattern_contributions') else {},
+            # Details from scorer
+            'score_details': score.details if score.details else {},
 
             # Confluence details
             'confluence_details': score.confluence_details if hasattr(score, 'confluence_details') else {},

@@ -193,8 +193,7 @@ class SignalInfo:
         
         if self.score:
             summary += (
-                f"Score: {self.score.final_score:.2f} "
-                f"({self.score.signal_strength})\n"
+                f"Score: {self.score.final_score:.2f}\n"
                 f"Confidence: {self.confidence:.2f}\n"
             )
         
