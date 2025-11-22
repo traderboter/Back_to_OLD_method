@@ -268,11 +268,11 @@ class FastBacktestEngine:
             # 1. به‌روزرسانی معاملات باز
             self._update_open_trades(current_row, current_time)
 
-            # 2. بررسی سیگنال جدید (هر N کندل)
-            if i % 12 == 0:  # هر 12 کندل 5 دقیقه‌ای = 1 ساعت
-                signal = self._check_signal(df_signal, current_time, symbol)
-                if signal:
-                    self._open_trade(signal, current_row, current_time, symbol)
+            # 2. بررسی سیگنال جدید (در هر کندل)
+            # Check signal at every candle to match OLD backtest behavior
+            signal = self._check_signal(df_signal, current_time, symbol)
+            if signal:
+                self._open_trade(signal, current_row, current_time, symbol)
 
             # 3. ثبت equity و محاسبه drawdown (هر 10 کندل برای دقت بیشتر)
             if i % 10 == 0:
