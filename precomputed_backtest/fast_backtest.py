@@ -160,6 +160,20 @@ class FastBacktestEngine:
         self.step_timeframe = self.backtest_config.get('step_timeframe', '5m')
         self.signal_timeframe = config.get('signal_processing', {}).get('primary_timeframe', '1h')
 
+        # 🆕 Date filtering (start_date and end_date)
+        self.start_date = None
+        self.end_date = None
+        if 'start_date' in self.backtest_config:
+            self.start_date = pd.to_datetime(self.backtest_config['start_date'])
+            logger.info(f"  Start date filter: {self.start_date}")
+        if 'end_date' in self.backtest_config:
+            self.end_date = pd.to_datetime(self.backtest_config['end_date'])
+            logger.info(f"  End date filter: {self.end_date}")
+
+        # 🆕 Process interval (how often to check for signals in step candles)
+        self.process_interval = self.backtest_config.get('process_interval', 1)
+        logger.info(f"  Process interval: every {self.process_interval} candles")
+
         # تنظیمات معامله
         self.risk_per_trade = config.get('risk_management', {}).get('risk_per_trade', 0.02)
         self.min_signal_score = 30  # آستانه پایین‌تر برای تولید سیگنال بیشتر
@@ -265,14 +279,26 @@ class FastBacktestEngine:
             current_time = df_step.index[i]
             current_row = df_step.iloc[i]
 
+            # 🆕 Date filtering: Skip candles outside date range
+            if self.start_date and current_time < self.start_date:
+                continue
+            if self.end_date and current_time > self.end_date:
+                break  # No more candles after end_date
+
             # 1. به‌روزرسانی معاملات باز
             self._update_open_trades(current_row, current_time)
 
-            # 2. بررسی سیگنال جدید (در هر کندل)
-            # Check signal at every candle to match OLD backtest behavior
-            signal = self._check_signal(df_signal, current_time, symbol)
-            if signal:
-                self._open_trade(signal, current_row, current_time, symbol)
+            # 2. بررسی سیگنال جدید (با رعایت process_interval)
+            # 🆕 Only check signal every N candles (process_interval)
+            if (i - 50) % self.process_interval == 0:
+                signal = self._check_signal(df_signal, current_time, symbol)
+                if signal:
+                    # 🆕 Deduplication: Don't open if already have open trade for this symbol
+                    open_for_symbol = [t for t in self.open_trades if t.symbol == symbol]
+                    max_trades_per_symbol = self.config.get('risk_management', {}).get('max_trades_per_symbol', 1)
+
+                    if len(open_for_symbol) < max_trades_per_symbol:
+                        self._open_trade(signal, current_row, current_time, symbol)
 
             # 3. ثبت equity و محاسبه drawdown (هر 10 کندل برای دقت بیشتر)
             if i % 10 == 0:
