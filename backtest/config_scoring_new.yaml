@@ -13,6 +13,8 @@ orchestrator:
 
 signal_processing:
   scoring:
+    # 🆕 شناسه متد امتیازدهی
+    scoring_method: 'new'
     # محدودیت امتیاز (NEW SYSTEM uses bounded scoring)
     max_final_score: 100
 

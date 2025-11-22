@@ -10,6 +10,8 @@ orchestrator:
 
 signal_processing:
   scoring:
+    # 🆕 شناسه متد امتیازدهی
+    scoring_method: 'old'
     # نامحدود (unlimited scoring)
     max_final_score: 0
 
