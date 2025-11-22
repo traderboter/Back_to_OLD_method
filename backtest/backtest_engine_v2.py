@@ -738,12 +738,16 @@ class BacktestEngineV2:
 
         output_path = Path(output_dir)
 
-        # ایجاد پوشه با timestamp
+        # استخراج scoring method برای نام‌گذاری پوشه
+        scoring_method = self.config.get('signal_processing', {}).get('scoring', {}).get('scoring_method', 'unknown')
+
+        # ایجاد پوشه با method و timestamp
         timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-        run_dir = output_path / f"v2_{timestamp}"
+        run_dir = output_path / f"v2_{scoring_method}_{timestamp}"
         run_dir.mkdir(parents=True, exist_ok=True)
 
         logger.info(f"Saving results to: {run_dir}")
+        logger.info(f"Scoring Method: {scoring_method.upper()}")
 
         # 1. ذخیره آمار کلی (JSON)
         stats_file = run_dir / 'statistics.json'
