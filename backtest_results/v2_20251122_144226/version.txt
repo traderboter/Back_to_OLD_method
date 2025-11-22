@@ -1,5 +1,0 @@
-Backtest Engine Version 2.0
-Using: SignalOrchestrator
-Scoring Method: UNKNOWN
-Aggregation Mode: Multi-TF Aggregation (OLD)
-Date: 2025-11-22T14:42:26.728970
