@@ -1,6 +1,7 @@
 # Precomputed backtest data (generated files)
 computed_data/
 precomputed_backtest/computed_data/
+precomputed_backtest/reports/
 
 # Python cache
 __pycache__/
